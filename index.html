@@ -1,0 +1,2155 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ViVu - Đặt Xe & Du Lịch</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Be Vietnam Pro"', 'sans-serif'],
+          },
+          colors: {
+            vivu: {
+              teal: '#00897B',
+              tealDark: '#00695C',
+              tealDeep: '#004D40',
+              mint: '#E0F7FA',
+              mintSoft: '#F0FDFA',
+              aqua: '#B2EBF2',
+              orange: '#FF7043',
+              orangeBright: '#FF9800',
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Be Vietnam Pro', sans-serif;
+      background-color: #F0FDFA;
+      color: #0F172A;
+      overflow-x: hidden;
+      margin: 0;
+    }
+
+    /* Animated Ambient Background */
+    .vivu-bg-animated {
+      background: linear-gradient(135deg, #E0F7FA 0%, #F0FDFA 45%, #FFF3E0 100%);
+      position: relative;
+    }
+    .floating-blob {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(60px);
+      z-index: 0;
+      pointer-events: none;
+      animation: floatBlob 14s ease-in-out infinite alternate;
+    }
+    @keyframes floatBlob {
+      0% { transform: translate(0px, 0px) scale(1); }
+      50% { transform: translate(25px, -20px) scale(1.08); }
+      100% { transform: translate(-20px, 25px) scale(0.95); }
+    }
+
+    /* Smooth Tab & View Transitions */
+    .tab-view {
+      animation: slideFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    @keyframes slideFadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(14px) scale(0.99);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    /* Splash Screen Animations */
+    @keyframes logoFloat {
+      0%, 100% { transform: translateY(0px) scale(1); }
+      50% { transform: translateY(-8px) scale(1.03); }
+    }
+    @keyframes roadDash {
+      to { stroke-dashoffset: -48; }
+    }
+    .splash-logo-anim {
+      animation: logoFloat 2.6s ease-in-out infinite;
+    }
+    .road-dash-anim {
+      stroke-dasharray: 12 12;
+      animation: roadDash 1s linear infinite;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(0, 137, 123, 0.25); border-radius: 999px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(0, 137, 123, 0.45); }
+
+    /* Leaflet Map Z-index fix */
+    .leaflet-container {
+      z-index: 10 !important;
+      font-family: 'Be Vietnam Pro', sans-serif !important;
+    }
+
+    /* Pulse GPS Radar */
+    @keyframes radarPing {
+      0% { transform: scale(0.8); opacity: 0.85; }
+      100% { transform: scale(2.4); opacity: 0; }
+    }
+    .gps-ping {
+      animation: radarPing 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+    }
+
+    /* Wheel Spin Transition */
+    .wheel-spinner {
+      transition: transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99);
+    }
+  </style>
+</head>
+<body class="vivu-bg-animated min-h-screen">
+
+  <!-- Ambient Animated Background Blobs -->
+  <div class="floating-blob w-80 h-80 bg-teal-300/25 top-[-60px] left-[-60px]"></div>
+  <div class="floating-blob w-96 h-96 bg-orange-300/20 bottom-[10%] right-[-80px]" style="animation-delay: -5s;"></div>
+  <div class="floating-blob w-72 h-72 bg-cyan-300/25 top-[45%] left-[20%]" style="animation-delay: -9s;"></div>
+
+  <!-- ==================== SPLASH SCREEN ==================== -->
+  <div id="splashScreen" class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-gradient-to-br from-[#00695C] via-[#00897B] to-[#004D40] text-white transition-all duration-700">
+    <!-- Animated Clouds & Winding Road Background SVG -->
+    <svg class="absolute inset-0 w-full h-full opacity-20 pointer-events-none" viewBox="0 0 800 800" preserveAspectRatio="xMidYMid slice">
+      <circle cx="150" cy="180" r="90" fill="#B2EBF2" />
+      <circle cx="220" cy="190" r="65" fill="#E0F7FA" />
+      <circle cx="650" cy="240" r="110" fill="#B2EBF2" />
+      <path d="M 150 800 C 200 620, 580 580, 420 420 C 310 310, 520 220, 620 120" fill="none" stroke="#E0F7FA" stroke-width="28" stroke-linecap="round" opacity="0.35" />
+      <path d="M 150 800 C 200 620, 580 580, 420 420 C 310 310, 520 220, 620 120" fill="none" stroke="#FF9800" stroke-width="4" stroke-linecap="round" class="road-dash-anim" />
+    </svg>
+
+    <div class="relative z-10 flex flex-col items-center px-6 text-center">
+      <!-- Custom ViVu Logo SVG replicating uploaded artwork -->
+      <div id="splashLogoContainer" class="splash-logo-anim mb-6 drop-shadow-2xl"></div>
+
+      <p class="text-teal-100 text-sm sm:text-base font-medium tracking-wide max-w-xs mb-8">
+        Hành trình vạn dặm • Kết nối quê hương & Điểm đến du lịch
+      </p>
+
+      <!-- Progress Bar -->
+      <div class="w-56 h-2 bg-white/20 rounded-full overflow-hidden backdrop-blur-sm">
+        <div id="splashProgress" class="h-full bg-gradient-to-r from-[#FF7043] to-[#FFCA28] rounded-full transition-all duration-300" style="width: 15%"></div>
+      </div>
+      <span id="splashStatusText" class="text-xs text-teal-100/90 mt-3 font-medium">Đang khởi động hệ thống ViVu...</span>
+    </div>
+  </div>
+
+  <!-- ==================== TOAST NOTIFICATION ==================== -->
+  <div id="toastContainer" class="fixed top-4 right-4 z-[90] flex flex-col gap-2 max-w-sm w-[calc(100%-2rem)] pointer-events-none"></div>
+
+  <!-- ==================== MAIN APP SHELL ==================== -->
+  <div id="appShell" class="relative z-10 max-w-5xl mx-auto min-h-screen flex flex-col md:flex-row shadow-2xl bg-white/80 backdrop-blur-xl border-x border-teal-100/80">
+
+    <!-- DESKTOP SIDEBAR NAV (Green SM Style) -->
+    <aside class="hidden md:flex md:w-64 lg:w-72 flex-col justify-between bg-gradient-to-b from-[#00695C] to-[#004D40] text-white p-5 shrink-0">
+      <div>
+        <!-- Brand Header -->
+        <div class="flex items-center gap-3 pb-5 border-b border-white/15">
+          <div id="sidebarLogoContainer" class="w-12 h-12 shrink-0"></div>
+          <div>
+            <div class="flex items-center gap-1 font-extrabold text-xl tracking-tight">
+              <span>VIV</span><span class="text-[#FF8A65]">U</span>
+            </div>
+            <p class="text-[11px] text-teal-200 font-medium">Đặt xe đường dài & Du lịch</p>
+          </div>
+        </div>
+
+        <!-- Role Switcher Quick Pill -->
+        <div class="mt-4 bg-white/10 rounded-xl p-2.5 backdrop-blur-sm">
+          <div class="text-[11px] text-teal-200 mb-1.5 flex items-center justify-between">
+            <span>Chế độ hiển thị:</span>
+            <span id="sidebarRoleBadge" class="px-2 py-0.5 rounded-full bg-[#FF7043] text-white text-[10px] font-bold">Khách hàng</span>
+          </div>
+          <select id="desktopRoleSelect" onchange="switchRole(this.value)" class="w-full bg-teal-900/70 text-white text-xs rounded-lg px-2.5 py-2 border border-teal-400/30 focus:outline-none">
+            <option value="customer">👤 Khách hàng đặt xe</option>
+            <option value="driver">🚖 Tài xế / Nhà xe</option>
+            <option value="admin">🛡️ Quản trị viên (Admin)</option>
+          </select>
+        </div>
+
+        <!-- Navigation Links -->
+        <nav class="mt-6 space-y-1.5" id="desktopNav">
+          <button onclick="switchTab('home')" data-tab="home" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all bg-white text-[#00695C] shadow-md">
+            <span class="text-lg">🏠</span>
+            <span>Trang chủ</span>
+          </button>
+          <button onclick="switchTab('activity')" data-tab="activity" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all text-teal-100 hover:bg-white/10">
+            <span class="text-lg">🧾</span>
+            <span>Hoạt động</span>
+            <span id="desktopActivityCount" class="ml-auto bg-white/20 text-xs px-2 py-0.5 rounded-full">3</span>
+          </button>
+          <button onclick="switchTab('notifications')" data-tab="notifications" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all text-teal-100 hover:bg-white/10">
+            <span class="text-lg">🔔</span>
+            <span>Thông báo</span>
+            <span id="desktopNotifCount" class="ml-auto bg-[#FF7043] text-white text-xs px-2 py-0.5 rounded-full">4</span>
+          </button>
+          <button onclick="switchTab('account')" data-tab="account" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all text-teal-100 hover:bg-white/10">
+            <span class="text-lg">👤</span>
+            <span>Tài khoản</span>
+          </button>
+        </nav>
+      </div>
+
+      <!-- Loyalty Summary Card -->
+      <div class="bg-gradient-to-r from-[#FF7043] to-[#FF9800] rounded-2xl p-4 text-white shadow-lg">
+        <div class="flex items-center justify-between text-xs font-medium opacity-90">
+          <span>Điểm ViVu Xu</span>
+          <span>🎁 Đổi quà</span>
+        </div>
+        <div class="text-2xl font-extrabold mt-1 flex items-baseline gap-1">
+          <span id="sidebarPoints">1,250</span>
+          <span class="text-xs font-normal">điểm</span>
+        </div>
+        <button onclick="switchTab('account'); setTimeout(()=>scrollToGames(), 150)" class="mt-2.5 w-full py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-xs font-semibold transition">
+          Chơi mini-game nhận xu →
+        </button>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="flex-1 flex flex-col min-w-0 pb-24 md:pb-6">
+
+      <!-- TOP HEADER BAR -->
+      <header class="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-teal-100 px-4 py-3 flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div id="mobileLogoContainer" class="w-10 h-10 md:hidden shrink-0"></div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-1.5 text-[11px] font-semibold text-[#00897B]">
+              <span class="relative flex h-2.5 w-2.5">
+                <span class="gps-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#00897B]"></span>
+              </span>
+              <span id="gpsStatusLabel">Vị trí GPS chính xác</span>
+              <button onclick="scanUserGPS(true)" class="underline text-[#FF7043] hover:text-orange-600 ml-1">Quét lại</button>
+            </div>
+            <p id="currentLocationText" class="text-xs sm:text-sm font-bold text-slate-800 truncate">
+              Đang định vị tọa độ của bạn...
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 shrink-0">
+          <!-- Points Pill -->
+          <button onclick="switchTab('account')" class="flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 px-2.5 py-1.5 rounded-full text-xs font-bold transition">
+            <span>🪙</span>
+            <span id="headerPoints">1,250</span>
+          </button>
+          <!-- Auth / Account Quick Trigger -->
+          <button id="headerAuthBtn" onclick="openAuthModal()" class="bg-gradient-to-r from-[#00897B] to-[#00695C] hover:opacity-95 text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-sm transition">
+            Đăng nhập / ĐK
+          </button>
+        </div>
+      </header>
+
+      <!-- ==================== TAB 1: TRANG CHỦ ==================== -->
+      <section id="tab-home" class="tab-view p-4 sm:p-6 space-y-6">
+
+        <!-- Hero Search Banner (Green SM / ViVu Signature Style) -->
+        <div class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#00796B] via-[#00897B] to-[#00ACC1] p-5 sm:p-6 text-white shadow-xl">
+          <div class="absolute right-[-20px] bottom-[-20px] opacity-15 pointer-events-none">
+            <svg width="210" height="210" viewBox="0 0 200 200">
+              <circle cx="100" cy="100" r="90" fill="#FFFFFF" />
+              <path d="M 40 160 Q 100 110 150 50" stroke="#FF7043" stroke-width="18" fill="none" stroke-linecap="round"/>
+            </svg>
+          </div>
+
+          <div class="relative z-10">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <span class="inline-flex items-center gap-1.5 bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-semibold">
+                ✨ Chào <span id="heroUserName">bạn mới</span>! Hôm nay bạn muốn đi đâu?
+              </span>
+              <span class="text-xs bg-[#FF7043] px-2.5 py-1 rounded-full font-bold shadow">Giảm 20% tuyến Sa Pa & Yên Tử</span>
+            </div>
+
+            <!-- Main Search Bar: "Bạn muốn đi đâu?" -->
+            <div class="bg-white rounded-2xl p-2 shadow-lg flex flex-col sm:flex-row gap-2 text-slate-800">
+              <div class="flex-1 flex items-center gap-2.5 px-3 py-2 bg-teal-50/70 rounded-xl border border-teal-100">
+                <span class="text-lg">📍</span>
+                <div class="flex-1 min-w-0">
+                  <label class="block text-[10px] font-bold uppercase text-[#00897B]">Điểm đón hiện tại</label>
+                  <input id="pickupInput" type="text" value="144 Xuân Thủy, Cầu Giấy, Hà Nội" class="w-full bg-transparent text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none" />
+                </div>
+              </div>
+              <div class="flex-1 flex items-center gap-2.5 px-3 py-2 bg-orange-50/70 rounded-xl border border-orange-100">
+                <span class="text-lg">🏁</span>
+                <div class="flex-1 min-w-0">
+                  <label class="block text-[10px] font-bold uppercase text-[#FF7043]">Bạn muốn đi đâu?</label>
+                  <input id="destinationInput" type="text" placeholder="Nhập tỉnh, điểm du lịch, bến xe..." class="w-full bg-transparent text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none" />
+                </div>
+              </div>
+              <button onclick="openBookingFromSearch()" class="bg-gradient-to-r from-[#FF7043] to-[#FF9800] hover:brightness-105 text-white font-bold text-sm px-5 py-3 rounded-xl shadow-md transition shrink-0">
+                Tìm chuyến
+              </button>
+            </div>
+
+            <!-- Quick Route Suggestions -->
+            <div class="mt-4">
+              <p class="text-xs text-teal-100 font-semibold mb-2">🔥 Gợi ý tuyến đường & Điểm du lịch nổi bật:</p>
+              <div class="flex flex-wrap gap-2">
+                <button onclick="selectSuggestedRoute('Quê nhà (Nam Định)', 'Bến xe Mỹ Đình, Hà Nội', 95, 160000)" class="bg-white/15 hover:bg-white/25 backdrop-blur-sm border border-white/20 px-3 py-1.5 rounded-full text-xs font-medium transition">
+                  🌾 Từ quê lên thành phố
+                </button>
+                <button onclick="selectSuggestedRoute('Cầu Giấy, Hà Nội', 'TP. Thanh Hóa (Về quê)', 160, 220000)" class="bg-white/15 hover:bg-white/25 backdrop-blur-sm border border-white/20 px-3 py-1.5 rounded-full text-xs font-medium transition">
+                  🏡 Từ thành phố về quê
+                </button>
+                <button onclick="selectSuggestedRoute('Hà Nội', 'Thị xã Sa Pa, Lào Cai', 315, 380000)" class="bg-white/15 hover:bg-white/25 backdrop-blur-sm border border-white/20 px-3 py-1.5 rounded-full text-xs font-medium transition">
+                  🏔️ Hà Nội → Sa Pa
+                </button>
+                <button onclick="selectSuggestedRoute('Hà Nội', 'Khu di tích Yên Tử, Quảng Ninh', 135, 210000)" class="bg-white/15 hover:bg-white/25 backdrop-blur-sm border border-white/20 px-3 py-1.5 rounded-full text-xs font-medium transition">
+                  ⛩️ Hà Nội → Yên Tử
+                </button>
+                <button onclick="selectSuggestedRoute('Hà Nội', 'Vịnh Hạ Long, Quảng Ninh', 165, 250000)" class="bg-white/15 hover:bg-white/25 backdrop-blur-sm border border-white/20 px-3 py-1.5 rounded-full text-xs font-medium transition">
+                  ⛵ Hà Nội → Hạ Long
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4 Core Services Grid -->
+        <div>
+          <h2 class="text-base sm:text-lg font-extrabold text-slate-800 mb-3 flex items-center gap-2">
+            <span class="w-1.5 h-5 bg-[#00897B] rounded-full"></span>
+            Dịch vụ ViVu toàn diện
+          </h2>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <button onclick="switchHomeSubPanel('ride')" id="serviceCard-ride" class="service-card group p-4 rounded-2xl bg-white border-2 border-[#00897B] shadow-md text-left transition hover:-translate-y-0.5">
+              <div class="w-11 h-11 rounded-2xl bg-teal-100 text-2xl flex items-center justify-center mb-2.5 group-hover:scale-110 transition">🚐</div>
+              <div class="font-bold text-sm text-slate-800">Đặt xe đường dài</div>
+              <p class="text-[11px] text-slate-500 mt-0.5">Đi ngay, hẹn giờ, bao xe</p>
+            </button>
+
+            <button onclick="switchHomeSubPanel('selfdrive')" id="serviceCard-selfdrive" class="service-card group p-4 rounded-2xl bg-white border border-slate-200 hover:border-[#00897B] shadow-sm text-left transition hover:-translate-y-0.5">
+              <div class="w-11 h-11 rounded-2xl bg-cyan-100 text-2xl flex items-center justify-center mb-2.5 group-hover:scale-110 transition">🚘</div>
+              <div class="font-bold text-sm text-slate-800">Thuê xe tự lái</div>
+              <p class="text-[11px] text-slate-500 mt-0.5">Xe điện, 4-7 chỗ đời mới</p>
+            </button>
+
+            <button onclick="switchHomeSubPanel('parcel')" id="serviceCard-parcel" class="service-card group p-4 rounded-2xl bg-white border border-slate-200 hover:border-[#00897B] shadow-sm text-left transition hover:-translate-y-0.5">
+              <div class="w-11 h-11 rounded-2xl bg-orange-100 text-2xl flex items-center justify-center mb-2.5 group-hover:scale-110 transition">📦</div>
+              <div class="font-bold text-sm text-slate-800">Kí gửi & Giao hàng</div>
+              <p class="text-[11px] text-slate-500 mt-0.5">Gửi bưu phẩm liên tỉnh</p>
+            </button>
+
+            <button onclick="switchHomeSubPanel('market')" id="serviceCard-market" class="service-card group p-4 rounded-2xl bg-white border border-slate-200 hover:border-[#00897B] shadow-sm text-left transition hover:-translate-y-0.5">
+              <div class="w-11 h-11 rounded-2xl bg-amber-100 text-2xl flex items-center justify-center mb-2.5 group-hover:scale-110 transition">🧺</div>
+              <div class="font-bold text-sm text-slate-800">Đặc sản & Nông sản</div>
+              <p class="text-[11px] text-slate-500 mt-0.5">Mua bán & ViVu giao tận nơi</p>
+            </button>
+          </div>
+        </div>
+
+        <!-- ==================== SUB-PANEL A: ĐẶT XE & BẢN ĐỒ REAL-TIME ==================== -->
+        <div id="subpanel-ride" class="space-y-5">
+          <!-- Booking Options Card -->
+          <div class="bg-white rounded-3xl p-5 shadow-md border border-teal-100">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+              <h3 class="font-extrabold text-base text-slate-800">⚙️ Tùy chọn chuyến đi của bạn</h3>
+              <!-- Immediate vs Scheduled Toggle -->
+              <div class="inline-flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                <button id="modeNowBtn" onclick="setBookingTimeMode('now')" class="px-3 py-1.5 rounded-lg bg-[#00897B] text-white shadow-sm transition">⚡ Đặt xe ngay</button>
+                <button id="modeScheduleBtn" onclick="setBookingTimeMode('schedule')" class="px-3 py-1.5 rounded-lg text-slate-600 transition">🕒 Hẹn giờ & Điểm đón</button>
+              </div>
+            </div>
+
+            <!-- Scheduled Date/Time & Custom Pickup Note -->
+            <div id="scheduleFields" class="hidden grid-cols-1 sm:grid-cols-3 gap-3 mb-4 p-3.5 bg-teal-50/70 rounded-2xl border border-teal-200">
+              <div>
+                <label class="block text-[11px] font-bold text-teal-800 mb-1">Ngày khởi hành</label>
+                <input id="scheduleDate" type="date" class="w-full px-3 py-2 rounded-xl border border-teal-200 bg-white text-xs font-semibold" />
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-teal-800 mb-1">Giờ đón dự kiến</label>
+                <input id="scheduleTime" type="time" value="07:30" class="w-full px-3 py-2 rounded-xl border border-teal-200 bg-white text-xs font-semibold" />
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-teal-800 mb-1">Ghi chú điểm đón cụ thể</label>
+                <input id="pickupNote" type="text" placeholder="VD: Cổng số 2, ngõ 68..." class="w-full px-3 py-2 rounded-xl border border-teal-200 bg-white text-xs font-semibold" />
+              </div>
+            </div>
+
+            <!-- Vehicle / Seat Type Selection -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+              <label class="cursor-pointer">
+                <input type="radio" name="rideType" value="single" checked onchange="recalculateFare()" class="peer sr-only" />
+                <div class="p-3.5 rounded-2xl border-2 border-slate-200 peer-checked:border-[#00897B] peer-checked:bg-teal-50/60 transition">
+                  <div class="flex items-center justify-between">
+                    <span class="font-bold text-sm text-slate-800">💺 Ghép xe 1 người</span>
+                    <span class="text-xs font-extrabold text-[#00897B]" id="priceSingle">220.000đ</span>
+                  </div>
+                  <p class="text-[11px] text-slate-500 mt-1">Tiết kiệm, đón tận nơi, Limousine 9 chỗ</p>
+                </div>
+              </label>
+
+              <label class="cursor-pointer">
+                <input type="radio" name="rideType" value="charter4" onchange="recalculateFare()" class="peer sr-only" />
+                <div class="p-3.5 rounded-2xl border-2 border-slate-200 peer-checked:border-[#00897B] peer-checked:bg-teal-50/60 transition">
+                  <div class="flex items-center justify-between">
+                    <span class="font-bold text-sm text-slate-800">🚗 Bao trọn xe 4-7 chỗ</span>
+                    <span class="text-xs font-extrabold text-[#FF7043]" id="priceCharter4">850.000đ</span>
+                  </div>
+                  <p class="text-[11px] text-slate-500 mt-1">Riêng tư cho gia đình, chủ động giờ giấc</p>
+                </div>
+              </label>
+
+              <label class="cursor-pointer">
+                <input type="radio" name="rideType" value="charter16" onchange="recalculateFare()" class="peer sr-only" />
+                <div class="p-3.5 rounded-2xl border-2 border-slate-200 peer-checked:border-[#00897B] peer-checked:bg-teal-50/60 transition">
+                  <div class="flex items-center justify-between">
+                    <span class="font-bold text-sm text-slate-800">🚌 Bao xe du lịch 16-29 chỗ</span>
+                    <span class="text-xs font-extrabold text-[#FF7043]" id="priceCharter16">1.650.000đ</span>
+                  </div>
+                  <p class="text-[11px] text-slate-500 mt-1">Phù hợp đoàn du lịch, công ty, lễ hội</p>
+                </div>
+              </label>
+            </div>
+
+            <!-- Promo Code & Payment Method -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-100">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">🎟️ Mã giảm giá / Voucher</label>
+                <div class="flex gap-2">
+                  <input id="promoCodeInput" type="text" placeholder="Nhập VIVU20 hoặc QUELENPHO" class="flex-1 px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold uppercase" />
+                  <button onclick="applyPromoCode()" class="px-3.5 py-2 bg-teal-100 hover:bg-teal-200 text-[#00695C] font-bold rounded-xl text-xs transition">Áp dụng</button>
+                </div>
+                <p id="promoFeedback" class="text-[11px] text-teal-600 mt-1 font-medium">Gợi ý: Nhập <b>VIVU20</b> giảm ngay 20%</p>
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">💳 Phương thức thanh toán</label>
+                <select id="paymentMethodSelect" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-white">
+                  <option value="cash">💵 Tiền mặt khi kết thúc chuyến</option>
+                  <option value="vivu_wallet">👛 Ví ViVu Pay (Số dư: 1.500.000đ)</option>
+                  <option value="vcb">🏦 Vietcombank **** 8899 (Đã liên kết)</option>
+                  <option value="momo">📱 Ví MoMo **** 0912 (Đã liên kết)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- GOOGLE MAPS / LIVE REAL-TIME GPS TRACKING CARD -->
+          <div class="bg-white rounded-3xl overflow-hidden shadow-lg border border-teal-100">
+            <div class="p-4 bg-gradient-to-r from-teal-50 to-orange-50 border-b border-teal-100 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+                  <h3 class="font-extrabold text-sm sm:text-base text-slate-800">Bản đồ chỉ đường & Định vị 2 chiều trực tiếp</h3>
+                </div>
+                <p class="text-xs text-slate-600 mt-0.5">
+                  Tuyến: <span id="mapRouteLabel" class="font-bold text-[#00796B]">Cầu Giấy, Hà Nội → Khu di tích Yên Tử</span> • <span id="mapDistanceLabel" class="font-semibold">135 km (~2 giờ 15 phút)</span>
+                </p>
+              </div>
+              <div class="flex items-center gap-2">
+                <button onclick="simulateLiveTracking()" id="liveTrackBtn" class="px-3.5 py-2 rounded-xl bg-[#00897B] hover:bg-[#00695C] text-white text-xs font-bold shadow transition">
+                  📡 Mô phỏng xe di chuyển
+                </button>
+              </div>
+            </div>
+
+            <!-- Interactive Map Canvas -->
+            <div class="relative">
+              <div id="vivuMap" class="w-full h-72 sm:h-80"></div>
+              <!-- Floating Real-Time Telemetry Pill -->
+              <div class="absolute bottom-3 left-3 right-3 z-20 bg-white/95 backdrop-blur-md rounded-2xl p-3 shadow-lg border border-teal-100 flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                  <img id="activeDriverAvatar" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop&crop=face" alt="Tài xế" class="w-11 h-11 rounded-full object-cover border-2 border-[#00897B]" />
+                  <div>
+                    <div class="flex items-center gap-1.5">
+                      <span id="activeDriverName" class="font-bold text-xs sm:text-sm text-slate-800">Nguyễn Văn Hùng</span>
+                      <span id="activeDriverRatingBadge" class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[11px] font-bold">⭐ 4.9</span>
+                    </div>
+                    <p id="activeDriverVehicle" class="text-[11px] text-slate-500">Limousine Hyundai Solati • Biển số: 29B-568.99</p>
+                    <p id="driverWarningTag" class="hidden text-[10px] font-bold text-red-600 mt-0.5">⚠️ Cảnh báo chất lượng (Dưới 3.5 sao)</p>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-3 ml-auto">
+                  <div class="text-right">
+                    <div class="text-[10px] text-slate-400 font-semibold">Tổng cước tạm tính</div>
+                    <div id="finalFareDisplay" class="text-base sm:text-lg font-extrabold text-[#FF7043]">210.000đ</div>
+                  </div>
+                  <button onclick="confirmRideBooking()" id="confirmRideBtn" class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#FF7043] to-[#FF9800] hover:brightness-105 text-white font-bold text-xs sm:text-sm shadow-md transition">
+                    Đặt xe ngay
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Active Ride Status Bar (Visible when a ride is booked) -->
+            <div id="activeRideBanner" class="hidden p-4 bg-emerald-50 border-t border-emerald-200 flex flex-wrap items-center justify-between gap-3">
+              <div class="flex items-center gap-2.5">
+                <span class="text-2xl">🚖</span>
+                <div>
+                  <p class="text-xs sm:text-sm font-extrabold text-emerald-900" id="activeRideStatusText">Tài xế đang di chuyển đến điểm đón của bạn (Cách 1.2 km)</p>
+                  <p class="text-[11px] text-emerald-700">Chia sẻ vị trí GPS thời gian thực giữa Nhà xe & Hành khách đang bật</p>
+                </div>
+              </div>
+              <button onclick="completeActiveRide()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow transition">
+                ✅ Hoàn thành chuyến & Đánh giá
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== SUB-PANEL B: THUÊ XE TỰ LÁI ==================== -->
+        <div id="subpanel-selfdrive" class="hidden space-y-4">
+          <div class="bg-white rounded-3xl p-5 shadow-md border border-teal-100">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h3 class="font-extrabold text-base text-slate-800">🚘 Thuê xe tự lái ViVu</h3>
+                <p class="text-xs text-slate-500">Giao xe tận nhà • Thủ tục CCCD & GPLX online nhanh chóng</p>
+              </div>
+              <span class="text-xs font-bold px-3 py-1 rounded-full bg-teal-100 text-[#00695C]">Miễn phí giao xe 5km</span>
+            </div>
+
+            <div id="selfDriveList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+          </div>
+        </div>
+
+        <!-- ==================== SUB-PANEL C: KÍ GỬI & GIAO HÀNG ==================== -->
+        <div id="subpanel-parcel" class="hidden space-y-4">
+          <div class="bg-white rounded-3xl p-5 shadow-md border border-teal-100">
+            <h3 class="font-extrabold text-base text-slate-800 mb-1">📦 Kí gửi bưu phẩm & Giao hàng liên tỉnh</h3>
+            <p class="text-xs text-slate-500 mb-4">Gửi đồ từ quê lên phố hoặc gửi hàng hỏa tốc theo các chuyến xe ViVu trong ngày</p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Tên người nhận & SĐT</label>
+                <input id="parcelReceiver" type="text" placeholder="VD: Trần Thị Mai - 0987654321" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Địa chỉ giao hàng</label>
+                <input id="parcelDest" type="text" placeholder="VD: TP. Hải Dương / Bến xe Giáp Bát" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Loại hàng hóa & Trọng lượng</label>
+                <select id="parcelWeight" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold bg-white">
+                  <option value="50000">📄 Hồ sơ / Gói nhỏ dưới 2kg (50.000đ)</option>
+                  <option value="90000">🎁 Thùng quà / Nông sản 2 - 10kg (90.000đ)</option>
+                  <option value="160000">🧳 Hành lý / Kiện lớn 10 - 25kg (160.000đ)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Ghi chú bảo quản</label>
+                <input id="parcelNote" type="text" placeholder="VD: Hàng dễ vỡ, thực phẩm tươi..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold" />
+              </div>
+            </div>
+
+            <button onclick="bookParcelDelivery()" class="mt-4 w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-[#00897B] to-[#00695C] text-white font-bold text-xs sm:text-sm shadow-md hover:opacity-95 transition">
+              🚀 Tạo đơn kí gửi & Tìm tài xế nhận hàng
+            </button>
+          </div>
+        </div>
+
+        <!-- ==================== SUB-PANEL D: CHỢ ĐẶC SẢN & NÔNG SẢN ==================== -->
+        <div id="subpanel-market" class="hidden space-y-4">
+          <div class="bg-white rounded-3xl p-5 shadow-md border border-teal-100">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+              <div>
+                <h3 class="font-extrabold text-base text-slate-800">🧺 Chợ Đặc Sản & Nông Sản Vùng Miền</h3>
+                <p class="text-xs text-slate-500">Đặt mua trực tiếp từ người dân địa phương • ViVu làm trung gian vận chuyển tận tay</p>
+              </div>
+              <button onclick="openSellProductModal()" class="px-4 py-2 rounded-xl bg-gradient-to-r from-[#FF7043] to-[#FF9800] text-white text-xs font-bold shadow hover:brightness-105 transition">
+                + Đăng bán đặc sản của bạn
+              </button>
+            </div>
+
+            <div id="specialtyGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ==================== TAB 2: HOẠT ĐỘNG (7-DAY AUTO-CLEANUP) ==================== -->
+      <section id="tab-activity" class="tab-view hidden p-4 sm:p-6 space-y-5">
+        <div class="bg-white rounded-3xl p-5 shadow-md border border-teal-100">
+          <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <div>
+              <h2 class="text-lg font-extrabold text-slate-800">🧾 Lịch sử hoạt động (7 ngày gần nhất)</h2>
+              <p class="text-xs text-slate-500 mt-0.5">Hệ thống tự động lưu trữ chuyến xe, kí gửi & đơn đặc sản trong 7 ngày và <b>tự động xóa từ ngày thứ 8</b>.</p>
+            </div>
+            <button onclick="simulateDay8Cleanup()" class="px-3.5 py-2 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-bold transition">
+              ⏳ Mô phỏng sang ngày thứ 8 (Tự động dọn dẹp)
+            </button>
+          </div>
+
+          <div class="p-3 rounded-2xl bg-teal-50 border border-teal-200 text-xs text-teal-800 flex items-center gap-2 mb-4">
+            <span>🛡️</span>
+            <span>Chính sách bảo mật dữ liệu ViVu: Các giao dịch quá 7 ngày sẽ được tự động xóa khỏi lịch sử cá nhân để tối ưu bộ nhớ và quyền riêng tư.</span>
+          </div>
+
+          <div id="activityListContainer" class="space-y-3"></div>
+        </div>
+      </section>
+
+      <!-- ==================== TAB 3: THÔNG BÁO ==================== -->
+      <section id="tab-notifications" class="tab-view hidden p-4 sm:p-6 space-y-4">
+        <div class="bg-white rounded-3xl p-5 shadow-md border border-teal-100">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-extrabold text-slate-800">🔔 Thông báo & Ưu đãi của bạn</h2>
+            <button onclick="markAllNotificationsRead()" class="text-xs font-bold text-[#00897B] hover:underline">Đánh dấu đã đọc tất cả</button>
+          </div>
+          <div id="notificationListContainer" class="space-y-3"></div>
+        </div>
+      </section>
+
+      <!-- ==================== TAB 4: TÀI KHOẢN (GREEN SM STYLE + GAMES + DRIVER REG) ==================== -->
+      <section id="tab-account" class="tab-view hidden p-4 sm:p-6 space-y-5">
+
+        <!-- Profile Header Card (Green SM Style) -->
+        <div class="bg-gradient-to-r from-[#00695C] via-[#00897B] to-[#00ACC1] rounded-3xl p-5 sm:p-6 text-white shadow-xl">
+          <div class="flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-4">
+              <div class="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-md border-2 border-white/60 flex items-center justify-center text-3xl font-extrabold shadow-inner overflow-hidden" id="profileAvatarBox">
+                👤
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h2 id="profileDisplayName" class="text-lg sm:text-xl font-extrabold">Khách hàng ViVu</h2>
+                  <span id="profileRoleTag" class="px-2.5 py-0.5 rounded-full bg-[#FF7043] text-[11px] font-bold">Thành viên Bạc</span>
+                </div>
+                <p id="profilePhoneText" class="text-xs sm:text-sm text-teal-100 mt-0.5">SĐT: 0912 345 678 • Đã xác thực AI OTP</p>
+                <div class="mt-2 flex flex-wrap gap-2">
+                  <button onclick="openAuthModal()" class="px-3 py-1 rounded-lg bg-white/20 hover:bg-white/30 text-xs font-semibold transition">✏️ Cập nhật / Đăng ký SĐT</button>
+                  <button onclick="openDriverRegisterModal()" class="px-3 py-1 rounded-lg bg-amber-400 text-slate-900 hover:bg-amber-300 text-xs font-bold transition">🚖 Đăng ký làm Nhà xe / Tài xế</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Role Switcher for Testing Privacy & Admin Rules -->
+            <div class="bg-black/20 backdrop-blur-md p-3 rounded-2xl border border-white/15 w-full sm:w-auto">
+              <label class="block text-[11px] text-teal-100 font-semibold mb-1">Chuyển vai trò xem hồ sơ:</label>
+              <select id="accountRoleSelect" onchange="switchRole(this.value)" class="w-full bg-white text-slate-800 text-xs font-bold px-3 py-2 rounded-xl">
+                <option value="customer">👤 Chế độ Khách hàng</option>
+                <option value="driver">🚖 Chế độ Nhà xe / Tài xế</option>
+                <option value="admin">🛡️ Chế độ Quản trị viên (Admin)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Driver / Partner Privacy & Rating Rules Showcase -->
+        <div class="bg-white rounded-3xl p-5 shadow-md border border-teal-100">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <div>
+              <h3 class="font-extrabold text-base text-slate-800">🚖 Hồ sơ Nhà xe & Quy định Chất lượng Tài xế</h3>
+              <p class="text-xs text-slate-500">Khách hàng chỉ thấy Tên, Ảnh chân dung & Loại xe. Chỉ Tài xế & Admin xem được CCCD & thông tin chi tiết.</p>
+            </div>
+            <div class="flex gap-1.5">
+              <button onclick="simulateDriverRating(4.8)" class="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 text-[11px] font-bold">Test 4.8⭐</button>
+              <button onclick="simulateDriverRating(3.2)" class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-800 text-[11px] font-bold">Test 3.2⭐ (Cảnh báo)</button>
+              <button onclick="simulateDriverRating(2.3)" class="px-2.5 py-1 rounded-lg bg-red-100 text-red-800 text-[11px] font-bold">Test 2.3⭐ (Khóa 1 tuần)</button>
+            </div>
+          </div>
+
+          <div id="driverProfileShowcase" class="p-4 rounded-2xl bg-slate-50 border border-slate-200"></div>
+        </div>
+
+        <!-- Loyalty Points & Interactive Mini-Games Hub -->
+        <div id="gamesHubSection" class="bg-white rounded-3xl p-5 shadow-md border border-teal-100 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 class="font-extrabold text-base text-slate-800">🎮 Trạm Giải Trí & Tích Điểm Đổi Quà ViVu</h3>
+              <p class="text-xs text-slate-500">Điểm danh hằng ngày & chơi game tích xu đổi Voucher giảm giá hoặc quà sự kiện</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="px-3 py-1.5 rounded-xl bg-amber-100 text-amber-900 font-extrabold text-xs">🪙 <span id="accountPointsDisplay">1,250</span> điểm</span>
+              <button id="dailyCheckinBtn" onclick="claimDailyCheckin()" class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#FF7043] to-[#FF9800] text-white text-xs font-bold shadow transition">
+                📅 Điểm danh (+100đ)
+              </button>
+            </div>
+          </div>
+
+          <!-- Mini-Game Selector Pills -->
+          <div class="flex flex-wrap gap-2">
+            <button onclick="selectMiniGame('wheel')" id="gameTab-wheel" class="px-3.5 py-2 rounded-xl bg-[#00897B] text-white text-xs font-bold transition">🎡 Vòng quay may mắn</button>
+            <button onclick="selectMiniGame('tree')" id="gameTab-tree" class="px-3.5 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold transition">🌱 Tưới cây nhận quà</button>
+            <button onclick="selectMiniGame('bubble')" id="gameTab-bubble" class="px-3.5 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold transition">🫧 Bắn bóng săn xu</button>
+            <button onclick="selectMiniGame('claw')" id="gameTab-claw" class="px-3.5 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold transition">🧸 Gắp thú & Làm bánh</button>
+            <button onclick="selectMiniGame('redeem')" id="gameTab-redeem" class="px-3.5 py-2 rounded-xl bg-orange-100 text-orange-800 text-xs font-bold transition">🎁 Đổi quà & Voucher</button>
+          </div>
+
+          <!-- Game Stage Area -->
+          <div id="miniGameStage" class="p-4 rounded-2xl bg-gradient-to-br from-teal-50/70 to-orange-50/70 border border-teal-100"></div>
+        </div>
+
+        <!-- Linked Banks & E-Wallets -->
+        <div class="bg-white rounded-3xl p-5 shadow-md border border-teal-100">
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <h3 class="font-extrabold text-base text-slate-800">🏦 Ngân hàng & Ví điện tử liên kết</h3>
+              <p class="text-xs text-slate-500">Thanh toán một chạm an toàn cho mọi chuyến đi và đơn đặc sản</p>
+            </div>
+            <button onclick="openLinkBankModal()" class="px-3.5 py-2 rounded-xl bg-teal-100 hover:bg-teal-200 text-[#00695C] text-xs font-bold transition">+ Liên kết mới</button>
+          </div>
+          <div id="linkedAccountsList" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+        </div>
+
+      </section>
+    </main>
+
+    <!-- MOBILE BOTTOM NAVIGATION BAR (Green SM Style) -->
+    <nav class="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-lg border-t border-teal-100 px-2 py-1.5 flex justify-around items-center shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
+      <button onclick="switchTab('home')" data-tab="home" class="mobile-nav-btn flex flex-col items-center py-1 px-3 rounded-xl text-[#00897B] font-bold">
+        <span class="text-xl">🏠</span>
+        <span class="text-[11px] mt-0.5">Trang chủ</span>
+      </button>
+      <button onclick="switchTab('activity')" data-tab="activity" class="mobile-nav-btn flex flex-col items-center py-1 px-3 rounded-xl text-slate-500 font-medium">
+        <span class="text-xl">🧾</span>
+        <span class="text-[11px] mt-0.5">Hoạt động</span>
+      </button>
+      <button onclick="switchTab('notifications')" data-tab="notifications" class="mobile-nav-btn relative flex flex-col items-center py-1 px-3 rounded-xl text-slate-500 font-medium">
+        <span class="text-xl">🔔</span>
+        <span id="mobileNotifDot" class="absolute top-1 right-3 w-2 h-2 rounded-full bg-[#FF7043]"></span>
+        <span class="text-[11px] mt-0.5">Thông báo</span>
+      </button>
+      <button onclick="switchTab('account')" data-tab="account" class="mobile-nav-btn flex flex-col items-center py-1 px-3 rounded-xl text-slate-500 font-medium">
+        <span class="text-xl">👤</span>
+        <span class="text-[11px] mt-0.5">Tài khoản</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- 1. Customer Phone + AI OTP Registration Modal -->
+  <div id="authModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-teal-100 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-extrabold text-slate-800">📱 Đăng ký / Đăng nhập ViVu</h3>
+        <button onclick="closeModal('authModal')" class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-bold">✕</button>
+      </div>
+      <p class="text-xs text-slate-500">Nhập số điện thoại để hệ thống AI gửi mã xác nhận OTP tự động về máy của bạn.</p>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Số điện thoại (SĐT)</label>
+          <div class="flex gap-2">
+            <input id="regPhoneInput" type="tel" placeholder="VD: 0912345678" class="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold" />
+            <button onclick="sendAiOtp()" class="px-4 py-2.5 rounded-xl bg-[#00897B] text-white text-xs font-bold hover:bg-[#00695C] transition">Gửi mã AI</button>
+          </div>
+        </div>
+
+        <div id="aiOtpBanner" class="hidden p-3 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
+          🤖 <b>Tin nhắn AI ViVu:</b> Mã xác nhận OTP của bạn là <span id="generatedOtpCode" class="font-extrabold text-base text-[#FF7043] tracking-widest">482910</span>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Mã xác nhận OTP</label>
+          <input id="regOtpInput" type="text" maxlength="6" placeholder="Nhập 6 chữ số OTP" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-bold tracking-widest" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Tên tài khoản hiển thị</label>
+          <input id="regNameInput" type="text" placeholder="VD: Minh Anh" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold" />
+        </div>
+      </div>
+
+      <button onclick="completeCustomerRegistration()" class="w-full py-3 rounded-xl bg-gradient-to-r from-[#FF7043] to-[#FF9800] text-white font-bold text-sm shadow-md">
+        Hoàn tất đăng ký tài khoản
+      </button>
+    </div>
+  </div>
+
+  <!-- 2. Driver / Transport Partner Registration Modal -->
+  <div id="driverRegModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
+    <div class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-teal-100 space-y-4 my-auto">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-extrabold text-slate-800">🚖 Đăng ký Nhà xe / Tài xế ViVu</h3>
+        <button onclick="closeModal('driverRegModal')" class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-bold">✕</button>
+      </div>
+      <p class="text-xs text-slate-500">Thông tin CCCD được bảo mật tuyệt đối (chỉ bạn và Quản trị viên được xem). Khách hàng chỉ thấy Tên, Ảnh chân dung & Loại xe.</p>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Họ và tên thật *</label>
+          <input id="drvRealName" type="text" placeholder="Nguyễn Văn Hùng" class="w-full px-3 py-2 rounded-xl border border-slate-200 font-semibold" />
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Số điện thoại cá nhân *</label>
+          <input id="drvPhone" type="tel" placeholder="0988112233" class="w-full px-3 py-2 rounded-xl border border-slate-200 font-semibold" />
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Số CCCD (12 số) *</label>
+          <input id="drvCccd" type="text" placeholder="001095001234" class="w-full px-3 py-2 rounded-xl border border-slate-200 font-semibold" />
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Ảnh chân dung tự chụp *</label>
+          <input id="drvSelfieInput" type="file" accept="image/*" onchange="previewDriverSelfie(event)" class="w-full text-[11px]" />
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Hãng xe & Loại xe *</label>
+          <input id="drvVehicleType" type="text" placeholder="VD: Hyundai Solati Limousine 9 chỗ" class="w-full px-3 py-2 rounded-xl border border-slate-200 font-semibold" />
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Màu sắc & Biển số xe *</label>
+          <input id="drvPlateColor" type="text" placeholder="VD: Đen - 29B-568.99" class="w-full px-3 py-2 rounded-xl border border-slate-200 font-semibold" />
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3 p-3 bg-teal-50 rounded-2xl">
+        <img id="drvSelfiePreview" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop&crop=face" class="w-12 h-12 rounded-full object-cover border-2 border-[#00897B]" alt="Preview" />
+        <span class="text-[11px] text-teal-800 font-medium">Ảnh chân dung rõ mặt giúp tăng 45% tỷ lệ khách đặt chuyến!</span>
+      </div>
+
+      <button onclick="submitDriverRegistration()" class="w-full py-3 rounded-xl bg-gradient-to-r from-[#00897B] to-[#00695C] text-white font-bold text-sm shadow-md">
+        Xác nhận đăng ký hồ sơ Nhà xe
+      </button>
+    </div>
+  </div>
+
+  <!-- 3. Post Regional Specialty Modal -->
+  <div id="sellProductModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-teal-100 space-y-3">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-extrabold text-slate-800">🧺 Đăng bán Đặc sản / Nông sản</h3>
+        <button onclick="closeModal('sellProductModal')" class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-bold">✕</button>
+      </div>
+      <p class="text-xs text-slate-500">Sản phẩm sẽ hiển thị trên chợ ViVu và được tài xế đường dài giao tận tay người mua.</p>
+
+      <div class="space-y-2.5 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Tên đặc sản / nông sản</label>
+          <input id="prodNameInput" type="text" placeholder="VD: Vải thiều Lục Ngạn loại 1 (Thùng 5kg)" class="w-full px-3 py-2 rounded-xl border border-slate-200 font-semibold" />
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Giá bán (VNĐ)</label>
+            <input id="prodPriceInput" type="number" placeholder="180000" class="w-full px-3 py-2 rounded-xl border border-slate-200 font-semibold" />
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Vùng miền xuất xứ</label>
+            <input id="prodOriginInput" type="text" placeholder="Bắc Giang" class="w-full px-3 py-2 rounded-xl border border-slate-200 font-semibold" />
+          </div>
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Biểu tượng / Hình ảnh minh họa</label>
+          <select id="prodEmojiInput" class="w-full px-3 py-2 rounded-xl border border-slate-200 font-semibold bg-white">
+            <option value="🍒">🍒 Trái cây / Vải thiều / Mận hậu</option>
+            <option value="🥩">🥩 Thịt trâu gác bếp / Lạp xưởng</option>
+            <option value="🦑">🦑 Hải sản / Chả mực Hạ Long</option>
+            <option value="🍵">🍵 Chè Thái Nguyên / Cà phê Tây Nguyên</option>
+            <option value="🥮">🥮 Bánh đậu xanh / Đặc sản làm quà</option>
+          </select>
+        </div>
+      </div>
+
+      <button onclick="publishNewSpecialty()" class="w-full py-3 rounded-xl bg-gradient-to-r from-[#FF7043] to-[#FF9800] text-white font-bold text-sm shadow-md">
+        Đăng lên Chợ Đặc Sản ViVu
+      </button>
+    </div>
+  </div>
+
+  <!-- 4. Post-Ride Star Rating & Feedback Modal -->
+  <div id="ratingModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-teal-100 text-center space-y-4">
+      <div class="w-16 h-16 mx-auto rounded-full bg-amber-100 text-3xl flex items-center justify-center">⭐</div>
+      <div>
+        <h3 class="text-lg font-extrabold text-slate-800">Đánh giá chuyến đi của bạn</h3>
+        <p class="text-xs text-slate-500 mt-1">Đánh giá của bạn giúp nâng cao chất lượng nhà xe ViVu (Tài xế dưới 3.5⭐ bị cảnh báo, dưới 2.5⭐ bị khóa 1 tuần)</p>
+      </div>
+
+      <!-- 5 Interactive Stars -->
+      <div class="flex justify-center gap-2 text-3xl" id="starPicker">
+        <button onclick="setRatingStars(1)" class="star-btn transition hover:scale-125 text-amber-400">★</button>
+        <button onclick="setRatingStars(2)" class="star-btn transition hover:scale-125 text-amber-400">★</button>
+        <button onclick="setRatingStars(3)" class="star-btn transition hover:scale-125 text-amber-400">★</button>
+        <button onclick="setRatingStars(4)" class="star-btn transition hover:scale-125 text-amber-400">★</button>
+        <button onclick="setRatingStars(5)" class="star-btn transition hover:scale-125 text-amber-400">★</button>
+      </div>
+      <p id="ratingLabelText" class="text-xs font-bold text-[#00897B]">5 Sao - Tuyệt vời!</p>
+
+      <textarea id="ratingCommentInput" rows="3" placeholder="Chia sẻ cảm nhận về tài xế, độ sạch sẽ của xe, đúng giờ..." class="w-full p-3 rounded-2xl border border-slate-200 text-xs font-medium"></textarea>
+
+      <div class="flex gap-2">
+        <button onclick="closeModal('ratingModal')" class="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs">Để sau</button>
+        <button onclick="submitRideFeedback()" class="flex-1 py-2.5 rounded-xl bg-[#00897B] text-white font-bold text-xs shadow">Gửi đánh giá (+50 Xu)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. Link Bank / E-Wallet Modal -->
+  <div id="linkBankModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-teal-100 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-extrabold text-slate-800">💳 Liên kết Ngân hàng / Ví điện tử</h3>
+        <button onclick="closeModal('linkBankModal')" class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-bold">✕</button>
+      </div>
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Chọn Ngân hàng hoặc Ví</label>
+          <select id="bankProviderSelect" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 font-semibold bg-white">
+            <option value="Techcombank">🏦 Techcombank</option>
+            <option value="MB Bank">🏦 MB Bank (Quân Đội)</option>
+            <option value="BIDV">🏦 BIDV</option>
+            <option value="ZaloPay">📱 Ví điện tử ZaloPay</option>
+            <option value="VNPay">📱 Ví VNPay</option>
+          </select>
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Số tài khoản / Số điện thoại ví</label>
+          <input id="bankAccountNumInput" type="text" placeholder="VD: 19036888999" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 font-semibold" />
+        </div>
+      </div>
+      <button onclick="confirmLinkBank()" class="w-full py-3 rounded-xl bg-[#00897B] text-white font-bold text-sm shadow">
+        Xác nhận liên kết ngay
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // ==================== CUSTOM VIVU LOGO SVG GENERATOR ====================
+    function createViVuLogoSVG(size = 130, showText = true) {
+      return `
+        <svg width="${size}" height="${size}" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="badgeGrad" cx="50%" cy="35%" r="65%">
+              <stop offset="0%" stop-color="#80DEEA"/>
+              <stop offset="55%" stop-color="#00897B"/>
+              <stop offset="100%" stop-color="#004D40"/>
+            </radialGradient>
+            <linearGradient id="vTealOrange" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#004D40"/>
+              <stop offset="45%" stop-color="#009688"/>
+              <stop offset="100%" stop-color="#FF9800"/>
+            </linearGradient>
+            <linearGradient id="orangePinGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#FFAB40"/>
+              <stop offset="100%" stop-color="#F4511E"/>
+            </linearGradient>
+          </defs>
+          <!-- Outer Circular Badge -->
+          <circle cx="120" cy="120" r="114" fill="url(#badgeGrad)" stroke="#E0F7FA" stroke-width="3"/>
+          <!-- Soft Clouds & Hills -->
+          <path d="M 12 145 Q 65 125 125 142 T 228 138 L 228 190 Q 120 230 12 190 Z" fill="#26A69A" opacity="0.55"/>
+          <!-- Winding Road -->
+          <path d="M 85 228 C 75 190, 145 178, 128 152 C 118 136, 145 130, 160 125 L 175 128 C 155 138, 142 144, 152 160 C 172 188, 118 202, 130 228 Z" fill="#004D40" opacity="0.65"/>
+          <!-- Flying Orange Bird -->
+          <path d="M 82 62 C 95 72, 108 70, 124 62 C 112 76, 105 84, 92 88 C 96 80, 90 74, 82 62 Z" fill="url(#orangePinGrad)"/>
+          <!-- Stylized V Arrow -->
+          <path d="M 62 72 C 78 72, 85 95, 96 116 C 108 100, 125 84, 142 74 L 136 66 L 164 68 L 156 94 L 149 86 C 128 104, 108 134, 94 138 C 78 140, 68 95, 56 76 Z" fill="url(#vTealOrange)"/>
+          <!-- Orange Accent Curve under V -->
+          <path d="M 86 138 C 105 142, 126 122, 144 98 C 134 126, 112 150, 88 146 Z" fill="#FF7043"/>
+          <!-- Map Pin Top Right -->
+          <path d="M 164 32 C 154 32, 147 40, 147 49 C 147 61, 164 74, 164 74 C 164 74, 181 61, 181 49 C 181 40, 174 32, 164 32 Z" fill="url(#orangePinGrad)"/>
+          <circle cx="164" cy="49" r="5.5" fill="#E0F7FA"/>
+          ${showText ? `
+            <text x="120" y="184" text-anchor="middle" font-family="'Be Vietnam Pro', sans-serif" font-weight="800" font-size="36" letter-spacing="2">
+              <tspan fill="#FFFFFF">VIV</tspan><tspan fill="#FF8A65">U</tspan>
+            </text>
+            <text x="120" y="201" text-anchor="middle" font-family="'Be Vietnam Pro', sans-serif" font-weight="700" font-size="10.5" fill="#E0F7FA" letter-spacing="1.2">
+              ĐẶT XE &amp; DU LỊCH
+            </text>
+          ` : ''}
+        </svg>
+      `;
+    }
+
+    // ==================== APPLICATION STATE ====================
+    const appState = {
+      role: 'customer', // 'customer' | 'driver' | 'admin'
+      user: {
+        name: 'Minh Anh',
+        phone: '0912 345 678',
+        verified: true,
+        points: 1250,
+        checkedInToday: false
+      },
+      driver: {
+        name: 'Nguyễn Văn Hùng',
+        phone: '0988 112 233',
+        cccd: '001095008899',
+        selfie: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=160&h=160&fit=crop&crop=face',
+        vehicleBrand: 'Hyundai',
+        vehicleType: 'Limousine Solati 9 chỗ',
+        vehicleColor: 'Đen',
+        licensePlate: '29B-568.99',
+        rating: 4.9,
+        tripsCount: 342,
+        suspendedUntil: null
+      },
+      booking: {
+        pickup: '144 Xuân Thủy, Cầu Giấy, Hà Nội',
+        destination: 'Khu di tích Yên Tử, Quảng Ninh',
+        distanceKm: 135,
+        baseSingleFare: 210000,
+        timeMode: 'now',
+        discountPercent: 0,
+        activeRide: false,
+        selectedStars: 5
+      },
+      activities: [
+        {
+          id: 'ACT-901',
+          type: 'ride',
+          title: 'Hà Nội → Thị xã Sa Pa (Limousine)',
+          detail: 'Tài xế Nguyễn Văn Hùng • Ghép xe 1 người',
+          amount: '380.000đ',
+          daysAgo: 1,
+          status: 'Hoàn thành'
+        },
+        {
+          id: 'ACT-884',
+          type: 'market',
+          title: 'Đặc sản: Thịt trâu gác bếp Sa Pa (1kg)',
+          detail: 'Giao trung gian bởi nhà xe ViVu tuyến Tây Bắc',
+          amount: '750.000đ',
+          daysAgo: 3,
+          status: 'Đã giao hàng'
+        },
+        {
+          id: 'ACT-850',
+          type: 'parcel',
+          title: 'Kí gửi bưu phẩm về Nam Định',
+          detail: 'Người nhận: Cô Lan • Thùng quà 5kg',
+          amount: '90.000đ',
+          daysAgo: 6,
+          status: 'Đã nhận'
+        },
+        {
+          id: 'ACT-812',
+          type: 'ride',
+          title: 'Cầu Giấy → Vịnh Hạ Long (Bao xe 4 chỗ)',
+          detail: 'Chuyến đi du lịch cuối tuần',
+          amount: '950.000đ',
+          daysAgo: 7,
+          status: 'Sắp hết hạn lưu trữ (Ngày 7)'
+        }
+      ],
+      notifications: [
+        {
+          id: 'N1',
+          title: '🎁 Tặng bạn Voucher giảm 20% tuyến Du lịch!',
+          body: 'Áp dụng mã VIVU20 khi đặt xe đi Sa Pa, Yên Tử, Hạ Long hoặc về quê.',
+          time: '15 phút trước',
+          code: 'VIVU20',
+          unread: true
+        },
+        {
+          id: 'N2',
+          title: '🌾 Ưu đãi tuyến Quê lên Phố - Đồng giá giảm 15%',
+          body: 'Nhập mã QUELENPHO để tiết kiệm chi phí di chuyển đầu tuần.',
+          time: '2 giờ trước',
+          code: 'QUELENPHO',
+          unread: true
+        },
+        {
+          id: 'N3',
+          title: '🛡️ Cập nhật tính năng Bản đồ định vị 2 chiều',
+          body: 'Giờ đây bạn và nhà xe có thể theo dõi vị trí chính xác từng mét theo thời gian thực.',
+          time: 'Hôm qua',
+          code: null,
+          unread: false
+        },
+        {
+          id: 'N4',
+          title: '🎮 Sự kiện Tưới Cây & Vòng Quay May Mắn',
+          body: 'Tham gia mini-game tại mục Tài khoản để đổi điểm lấy thẻ quà tặng ViVu.',
+          time: '2 ngày trước',
+          code: null,
+          unread: false
+        }
+      ],
+      specialties: [
+        {
+          id: 'SP1',
+          name: 'Thịt trâu gác bếp Sa Pa chuẩn vị',
+          origin: 'Lào Cai',
+          price: 750000,
+          seller: 'Nhà sàn A Phủ',
+          emoji: '🥩',
+          shipNote: 'Xe tuyến Sa Pa - Hà Nội giao trong ngày'
+        },
+        {
+          id: 'SP2',
+          name: 'Chả mực giã tay Hạ Long (Khay 1kg)',
+          origin: 'Quảng Ninh',
+          price: 420000,
+          seller: 'Hải sản Cô Tám',
+          emoji: '🦑',
+          shipNote: 'Xe Limousine Quảng Ninh giữ lạnh giao tận nơi'
+        },
+        {
+          id: 'SP3',
+          name: 'Bánh đậu xanh Rồng Vàng đặc biệt',
+          origin: 'Hải Dương',
+          price: 85000,
+          seller: 'Đặc sản Thành Đông',
+          emoji: '🥮',
+          shipNote: 'Kí gửi xe tuyến Quốc lộ 5 chỉ 2 tiếng'
+        },
+        {
+          id: 'SP4',
+          name: 'Chè Tân Cương Thái Nguyên thượng hạng',
+          origin: 'Thái Nguyên',
+          price: 260000,
+          seller: 'Đồi chè Phúc Xuân',
+          emoji: '🍵',
+          shipNote: 'Vận chuyển trung gian ViVu Express'
+        }
+      ],
+      selfDriveCars: [
+        { id: 'CAR1', name: 'VinFast VF 8 Plus (Xe điện)', seats: '5 chỗ • Tự động', pricePerDay: 950000, badge: 'Miễn phí sạc V-Green', emoji: '⚡' },
+        { id: 'CAR2', name: 'Mitsubishi Xpander Cross', seats: '7 chỗ • Số tự động', pricePerDay: 850000, badge: 'Phổ biến nhất', emoji: '🚙' },
+        { id: 'CAR3', name: 'Mazda CX-5 Luxury 2025', seats: '5 chỗ • Gầm cao', pricePerDay: 900000, badge: 'Giao xe tận nhà', emoji: '🚘' }
+      ],
+      linkedBanks: [
+        { id: 'B1', provider: 'Vietcombank', number: '**** **** 8899', type: 'Ngân hàng' },
+        { id: 'B2', provider: 'Ví MoMo', number: '0912 *** 678', type: 'Ví điện tử' }
+      ],
+      treeWaterCount: 2,
+      generatedOtp: '482910'
+    };
+
+    // ==================== INITIALIZATION & SPLASH SCREEN ====================
+    window.onload = function () {
+      // Render SVG Logos
+      document.getElementById('splashLogoContainer').innerHTML = createViVuLogoSVG(165, true);
+      document.getElementById('sidebarLogoContainer').innerHTML = createViVuLogoSVG(48, false);
+      document.getElementById('mobileLogoContainer').innerHTML = createViVuLogoSVG(40, false);
+
+      // Set default schedule date to tomorrow
+      const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+      document.getElementById('scheduleDate').value = tomorrow;
+
+      // Splash Screen Animation Sequence
+      const progressEl = document.getElementById('splashProgress');
+      const statusEl = document.getElementById('splashStatusText');
+      setTimeout(() => { progressEl.style.width = '55%'; statusEl.textContent = 'Đang kết nối bản đồ định vị GPS...'; }, 450);
+      setTimeout(() => { progressEl.style.width = '90%'; statusEl.textContent = 'Sẵn sàng cho hành trình của bạn!'; }, 1000);
+      setTimeout(() => {
+        progressEl.style.width = '100%';
+        const splash = document.getElementById('splashScreen');
+        splash.style.opacity = '0';
+        splash.style.pointerEvents = 'none';
+        setTimeout(() => splash.remove(), 650);
+
+        // Initialize Map & Auto GPS Scan upon entering app
+        initLiveMap();
+        scanUserGPS(false);
+        renderAllViews();
+      }, 1550);
+    };
+
+    // ==================== GPS AUTO-LOCATION SCANNING ====================
+    function scanUserGPS(isManual = false) {
+      const label = document.getElementById('gpsStatusLabel');
+      const locText = document.getElementById('currentLocationText');
+      label.textContent = 'Đang quét GPS chính xác...';
+      locText.textContent = 'Đang xác định tọa độ vệ tinh...';
+
+      if (navigator.geolocation && isManual) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const lat = pos.coords.latitude.toFixed(4);
+            const lng = pos.coords.longitude.toFixed(4);
+            const detected = `Vị trí hiện tại (${lat}, ${lng}) - Hà Nội`;
+            finishGpsUpdate(detected);
+          },
+          () => {
+            finishGpsUpdate('144 Xuân Thủy, Cầu Giấy, Hà Nội (Độ chính xác 5m)');
+          },
+          { timeout: 3000 }
+        );
+      } else {
+        setTimeout(() => {
+          finishGpsUpdate('144 Xuân Thủy, Cầu Giấy, Hà Nội (Độ chính xác 5m)');
+        }, 700);
+      }
+    }
+
+    function finishGpsUpdate(address) {
+      document.getElementById('gpsStatusLabel').textContent = 'Đã định vị GPS chính xác';
+      document.getElementById('currentLocationText').textContent = address;
+      document.getElementById('pickupInput').value = address.replace(' (Độ chính xác 5m)', '');
+      showToast('📍 Đã tự động quét vị trí hiện tại của bạn!', 'success');
+    }
+
+    // ==================== INTERACTIVE LEAFLET MAP & REAL-TIME TRACKING ====================
+    let mapInstance = null;
+    let routePolyline = null;
+    let driverMarker = null;
+    let customerMarker = null;
+    let trackingInterval = null;
+
+    const startCoords = [21.0368, 105.7826]; // Cầu Giấy, Hà Nội
+    let endCoords = [21.1235, 106.7185];     // Yên Tử, Quảng Ninh
+
+    function initLiveMap() {
+      if (mapInstance) return;
+      mapInstance = L.map('vivuMap', { zoomControl: false }).setView([21.06, 106.25], 9);
+
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap & ViVu Maps'
+      }).addTo(mapInstance);
+
+      const customerIcon = L.divIcon({
+        html: `<div style="background:#00897B;color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid white;box-shadow:0 4px 10px rgba(0,0,0,0.3);font-size:15px;">📍</div>`,
+        className: '',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+      });
+
+      const driverIcon = L.divIcon({
+        html: `<div style="background:#FF7043;color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid white;box-shadow:0 4px 12px rgba(255,112,67,0.6);font-size:17px;">🚐</div>`,
+        className: '',
+        iconSize: [36, 36],
+        iconAnchor: [18, 18]
+      });
+
+      customerMarker = L.marker(startCoords, { icon: customerIcon }).addTo(mapInstance).bindPopup('<b>Vị trí của bạn</b><br>Cầu Giấy, Hà Nội');
+      driverMarker = L.marker([21.0310, 105.7950], { icon: driverIcon }).addTo(mapInstance).bindPopup('<b>Nhà xe ViVu (29B-568.99)</b><br>Đang chia sẻ vị trí trực tiếp');
+
+      drawMapRoute(startCoords, endCoords);
+    }
+
+    function drawMapRoute(from, to) {
+      if (!mapInstance) return;
+      if (routePolyline) mapInstance.removeLayer(routePolyline);
+      const midPoint = [(from[0] + to[0]) / 2 + 0.04, (from[1] + to[1]) / 2];
+      routePolyline = L.polyline([from, midPoint, to], {
+        color: '#00897B',
+        weight: 5,
+        opacity: 0.85,
+        dashArray: '10, 8'
+      }).addTo(mapInstance);
+      mapInstance.fitBounds(routePolyline.getBounds(), { padding: [45, 45] });
+    }
+
+    function simulateLiveTracking() {
+      if (!mapInstance || !driverMarker) return;
+      if (trackingInterval) clearInterval(trackingInterval);
+
+      showToast('📡 Đang đồng bộ vị trí GPS giữa Nhà xe & Hành khách...', 'info');
+      let step = 0;
+      const totalSteps = 25;
+      const startDriver = [21.0280, 105.8050];
+
+      trackingInterval = setInterval(() => {
+        step++;
+        const progress = step / totalSteps;
+        const curLat = startDriver[0] + (startCoords[0] - startDriver[0]) * progress;
+        const curLng = startDriver[1] + (startCoords[1] - startDriver[1]) * progress;
+        driverMarker.setLatLng([curLat, curLng]);
+
+        const remainingKm = Math.max(0.1, (1.8 * (1 - progress))).toFixed(1);
+        const statusEl = document.getElementById('activeRideStatusText');
+        if (statusEl) {
+          statusEl.textContent = step < totalSteps
+            ? `Tài xế Nguyễn Văn Hùng đang đến đón bạn (Còn cách ${remainingKm} km)`
+            : `🎉 Xe ViVu đã tới điểm đón của bạn! Chúc bạn thượng lộ bình an.`;
+        }
+
+        if (step >= totalSteps) {
+          clearInterval(trackingInterval);
+        }
+      }, 450);
+    }
+
+    // ==================== NAVIGATION & SUB-PANELS ====================
+    function switchTab(tabName) {
+      ['home', 'activity', 'notifications', 'account'].forEach((t) => {
+        const sec = document.getElementById(`tab-${t}`);
+        if (t === tabName) {
+          sec.classList.remove('hidden');
+          // Re-trigger smooth UI animation
+          sec.classList.remove('tab-view');
+          void sec.offsetWidth;
+          sec.classList.add('tab-view');
+        } else {
+          sec.classList.add('hidden');
+        }
+      });
+
+      // Desktop Nav Styling
+      document.querySelectorAll('.nav-btn').forEach((btn) => {
+        if (btn.dataset.tab === tabName) {
+          btn.className = 'nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all bg-white text-[#00695C] shadow-md';
+        } else {
+          btn.className = 'nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all text-teal-100 hover:bg-white/10';
+        }
+      });
+
+      // Mobile Nav Styling
+      document.querySelectorAll('.mobile-nav-btn').forEach((btn) => {
+        if (btn.dataset.tab === tabName) {
+          btn.classList.remove('text-slate-500', 'font-medium');
+          btn.classList.add('text-[#00897B]', 'font-bold');
+        } else {
+          btn.classList.add('text-slate-500', 'font-medium');
+          btn.classList.remove('text-[#00897B]', 'font-bold');
+        }
+      });
+
+      if (tabName === 'home' && mapInstance) {
+        setTimeout(() => mapInstance.invalidateSize(), 200);
+      }
+    }
+
+    function switchHomeSubPanel(panel) {
+      ['ride', 'selfdrive', 'parcel', 'market'].forEach((p) => {
+        document.getElementById(`subpanel-${p}`).classList.toggle('hidden', p !== panel);
+        const card = document.getElementById(`serviceCard-${p}`);
+        if (p === panel) {
+          card.classList.add('border-2', 'border-[#00897B]', 'shadow-md');
+          card.classList.remove('border', 'border-slate-200');
+        } else {
+          card.classList.remove('border-2', 'border-[#00897B]', 'shadow-md');
+          card.classList.add('border', 'border-slate-200');
+        }
+      });
+    }
+
+    // ==================== BOOKING LOGIC & FARE CALCULATION ====================
+    function selectSuggestedRoute(from, to, km, singleFare) {
+      document.getElementById('pickupInput').value = from;
+      document.getElementById('destinationInput').value = to;
+      appState.booking.pickup = from;
+      appState.booking.destination = to;
+      appState.booking.distanceKm = km;
+      appState.booking.baseSingleFare = singleFare;
+
+      document.getElementById('mapRouteLabel').textContent = `${from} → ${to}`;
+      document.getElementById('mapDistanceLabel').textContent = `${km} km`;
+
+      // Shift destination pin on map slightly for visual feedback
+      const randomLat = 20.4 + (km % 15) * 0.06;
+      const randomLng = 105.6 + (km % 12) * 0.08;
+      endCoords = [randomLat, randomLng];
+      drawMapRoute(startCoords, endCoords);
+
+      recalculateFare();
+      switchHomeSubPanel('ride');
+      showToast(`🗺️ Đã chọn tuyến: ${from} → ${to}`, 'info');
+    }
+
+    function openBookingFromSearch() {
+      const from = document.getElementById('pickupInput').value.trim() || 'Cầu Giấy, Hà Nội';
+      const to = document.getElementById('destinationInput').value.trim();
+      if (!to) {
+        showToast('⚠️ Vui lòng nhập điểm đến bạn muốn đi!', 'warning');
+        return;
+      }
+      selectSuggestedRoute(from, to, 145, 230000);
+    }
+
+    function setBookingTimeMode(mode) {
+      appState.booking.timeMode = mode;
+      const nowBtn = document.getElementById('modeNowBtn');
+      const schBtn = document.getElementById('modeScheduleBtn');
+      const fields = document.getElementById('scheduleFields');
+
+      if (mode === 'schedule') {
+        schBtn.className = 'px-3 py-1.5 rounded-lg bg-[#00897B] text-white shadow-sm transition';
+        nowBtn.className = 'px-3 py-1.5 rounded-lg text-slate-600 transition';
+        fields.classList.remove('hidden');
+        fields.classList.add('grid');
+      } else {
+        nowBtn.className = 'px-3 py-1.5 rounded-lg bg-[#00897B] text-white shadow-sm transition';
+        schBtn.className = 'px-3 py-1.5 rounded-lg text-slate-600 transition';
+        fields.classList.add('hidden');
+        fields.classList.remove('grid');
+      }
+    }
+
+    function recalculateFare() {
+      const base = appState.booking.baseSingleFare;
+      const c4 = base * 4;
+      const c16 = Math.round(base * 7.5);
+
+      document.getElementById('priceSingle').textContent = formatVND(base);
+      document.getElementById('priceCharter4').textContent = formatVND(c4);
+      document.getElementById('priceCharter16').textContent = formatVND(c16);
+
+      const selectedType = document.querySelector('input[name="rideType"]:checked').value;
+      let rawFare = base;
+      if (selectedType === 'charter4') rawFare = c4;
+      if (selectedType === 'charter16') rawFare = c16;
+
+      const discounted = Math.round(rawFare * (1 - appState.booking.discountPercent / 100));
+      document.getElementById('finalFareDisplay').textContent = formatVND(discounted);
+      return discounted;
+    }
+
+    function applyPromoCode() {
+      const code = document.getElementById('promoCodeInput').value.trim().toUpperCase();
+      const fb = document.getElementById('promoFeedback');
+      if (code === 'VIVU20') {
+        appState.booking.discountPercent = 20;
+        fb.textContent = '✅ Đã áp dụng mã VIVU20: Giảm 20% tổng cước!';
+        showToast('🎟️ Áp dụng thành công mã giảm giá 20%!', 'success');
+      } else if (code === 'QUELENPHO') {
+        appState.booking.discountPercent = 15;
+        fb.textContent = '✅ Đã áp dụng mã QUELENPHO: Giảm 15% tổng cước!';
+        showToast('🎟️ Áp dụng thành công mã giảm giá 15%!', 'success');
+      } else if (code === 'VIVU50K') {
+        appState.booking.discountPercent = 25;
+        fb.textContent = '✅ Đã áp dụng mã đổi điểm VIVU50K: Giảm 25%!';
+        showToast('🎟️ Áp dụng thành công ưu đãi đổi điểm!', 'success');
+      } else {
+        appState.booking.discountPercent = 0;
+        fb.textContent = '❌ Mã không hợp lệ. Thử VIVU20 hoặc QUELENPHO';
+      }
+      recalculateFare();
+    }
+
+    function confirmRideBooking() {
+      if (appState.driver.suspendedUntil) {
+        showToast('🚫 Nhà xe này đang bị tạm khóa 1 tuần do đánh giá dưới 2.5 sao!', 'warning');
+        return;
+      }
+      const fare = recalculateFare();
+      const from = document.getElementById('pickupInput').value;
+      const to = document.getElementById('destinationInput').value || appState.booking.destination;
+      const isSchedule = appState.booking.timeMode === 'schedule';
+      const timeLabel = isSchedule
+        ? `Hẹn đón ${document.getElementById('scheduleTime').value} ngày ${document.getElementById('scheduleDate').value}`
+        : 'Đón ngay lập tức';
+
+      appState.booking.activeRide = true;
+      document.getElementById('activeRideBanner').classList.remove('hidden');
+      simulateLiveTracking();
+
+      // Add to 7-day activity log & award loyalty points
+      appState.activities.unshift({
+        id: 'ACT-' + Math.floor(100 + Math.random() * 900),
+        type: 'ride',
+        title: `${from} → ${to}`,
+        detail: `${timeLabel} • Tài xế ${appState.driver.name}`,
+        amount: formatVND(fare),
+        daysAgo: 0,
+        status: 'Đang di chuyển'
+      });
+
+      addPoints(150);
+      renderActivities();
+      showToast('🚖 Đặt xe thành công! Bạn nhận được +150 điểm ViVu Xu.', 'success');
+    }
+
+    function completeActiveRide() {
+      appState.booking.activeRide = false;
+      document.getElementById('activeRideBanner').classList.add('hidden');
+      if (appState.activities[0]) {
+        appState.activities[0].status = 'Hoàn thành';
+        renderActivities();
+      }
+      openModal('ratingModal');
+    }
+
+    // ==================== POST-RIDE RATING & DRIVER QUALITY RULES ====================
+    function setRatingStars(stars) {
+      appState.booking.selectedStars = stars;
+      const buttons = document.querySelectorAll('#starPicker .star-btn');
+      buttons.forEach((btn, idx) => {
+        btn.classList.toggle('text-amber-400', idx < stars);
+        btn.classList.toggle('text-slate-300', idx >= stars);
+      });
+      const labels = {
+        1: '1 Sao - Rất không hài lòng',
+        2: '2 Sao - Kém chất lượng',
+        3: '3 Sao - Bình thường, cần cải thiện',
+        4: '4 Sao - Hài lòng, xe sạch sẽ',
+        5: '5 Sao - Tuyệt vời!'
+      };
+      document.getElementById('ratingLabelText').textContent = labels[stars];
+    }
+
+    function submitRideFeedback() {
+      const stars = appState.booking.selectedStars;
+      // Weighted update of driver's rating so user can see immediate effect
+      const newAvg = Number(((appState.driver.rating * 3 + stars) / 4).toFixed(1));
+      applyDriverRatingRules(newAvg);
+      addPoints(50);
+      closeModal('ratingModal');
+      showToast(`⭐ Cảm ơn bạn đã đánh giá ${stars} sao! (+50 ViVu Xu)`, 'success');
+    }
+
+    function simulateDriverRating(targetRating) {
+      applyDriverRatingRules(targetRating);
+      showToast(`Đã cập nhật điểm đánh giá nhà xe thành ${targetRating}⭐ để kiểm tra quy tắc!`, 'info');
+    }
+
+    function applyDriverRatingRules(rating) {
+      appState.driver.rating = rating;
+      const warnTag = document.getElementById('driverWarningTag');
+      const badge = document.getElementById('activeDriverRatingBadge');
+      badge.textContent = `⭐ ${rating}`;
+
+      if (rating < 2.5) {
+        appState.driver.suspendedUntil = '7 ngày (Tạm khóa 1 tuần)';
+        warnTag.textContent = '🚫 Tài khoản nhà xe bị khóa 1 tuần (Dưới 2.5 sao)';
+        warnTag.classList.remove('hidden');
+        appState.notifications.unshift({
+          id: 'N-' + Date.now(),
+          title: '🚫 Cảnh báo hệ thống: Khóa tài khoản nhà xe 1 tuần',
+          body: `Nhà xe ${appState.driver.name} có điểm đánh giá ${rating}⭐ (dưới 2.5 sao) nên đã bị tạm khóa hoạt động 7 ngày.`,
+          time: 'Vừa xong',
+          code: null,
+          unread: true
+        });
+      } else if (rating < 3.5) {
+        appState.driver.suspendedUntil = null;
+        warnTag.textContent = '⚠️ Cảnh báo chất lượng nhà xe (Dưới 3.5 sao)';
+        warnTag.classList.remove('hidden');
+      } else {
+        appState.driver.suspendedUntil = null;
+        warnTag.classList.add('hidden');
+      }
+
+      renderDriverProfileShowcase();
+      renderNotifications();
+    }
+
+    // ==================== SELF-DRIVE, PARCEL & SPECIALTY MARKETPLACE ====================
+    function bookSelfDriveCar(carId) {
+      const car = appState.selfDriveCars.find((c) => c.id === carId);
+      if (!car) return;
+      appState.activities.unshift({
+        id: 'ACT-' + Math.floor(100 + Math.random() * 900),
+        type: 'selfdrive',
+        title: `Thuê xe tự lái: ${car.name}`,
+        detail: `${car.seats} • Nhận xe tại nhà`,
+        amount: formatVND(car.pricePerDay) + '/ngày',
+        daysAgo: 0,
+        status: 'Đã giữ xe'
+      });
+      addPoints(200);
+      renderActivities();
+      showToast(`🚘 Đã đặt thuê xe tự lái ${car.name}! (+200 Xu)`, 'success');
+    }
+
+    function bookParcelDelivery() {
+      const receiver = document.getElementById('parcelReceiver').value.trim();
+      const dest = document.getElementById('parcelDest').value.trim();
+      const fee = Number(document.getElementById('parcelWeight').value);
+      if (!receiver || !dest) {
+        showToast('⚠️ Vui lòng nhập đầy đủ tên người nhận và địa chỉ giao hàng!', 'warning');
+        return;
+      }
+      appState.activities.unshift({
+        id: 'ACT-' + Math.floor(100 + Math.random() * 900),
+        type: 'parcel',
+        title: `Kí gửi hàng đến ${dest}`,
+        detail: `Người nhận: ${receiver}`,
+        amount: formatVND(fee),
+        daysAgo: 0,
+        status: 'Đang chờ xe nhận'
+      });
+      addPoints(80);
+      renderActivities();
+      showToast('📦 Đã tạo đơn kí gửi hàng hóa! Tài xế tuyến sẽ liên hệ nhận hàng.', 'success');
+    }
+
+    function orderSpecialty(prodId) {
+      const item = appState.specialties.find((s) => s.id === prodId);
+      if (!item) return;
+      appState.activities.unshift({
+        id: 'ACT-' + Math.floor(100 + Math.random() * 900),
+        type: 'market',
+        title: `Mua đặc sản: ${item.name}`,
+        detail: `Xuất xứ ${item.origin} • ViVu vận chuyển trung gian`,
+        amount: formatVND(item.price + 35000),
+        daysAgo: 0,
+        status: 'Nhà xe đang vận chuyển'
+      });
+      addPoints(100);
+      renderActivities();
+      showToast(`🧺 Đã đặt mua "${item.name}"! Nhà xe trung gian đang giao hàng.`, 'success');
+    }
+
+    function openSellProductModal() {
+      openModal('sellProductModal');
+    }
+
+    function publishNewSpecialty() {
+      const name = document.getElementById('prodNameInput').value.trim();
+      const price = Number(document.getElementById('prodPriceInput').value);
+      const origin = document.getElementById('prodOriginInput').value.trim();
+      const emoji = document.getElementById('prodEmojiInput').value;
+
+      if (!name || !price || !origin) {
+        showToast('⚠️ Vui lòng nhập đầy đủ thông tin đặc sản!', 'warning');
+        return;
+      }
+
+      appState.specialties.unshift({
+        id: 'SP-' + Date.now(),
+        name,
+        origin,
+        price,
+        seller: appState.user.name + ' (Người bán ViVu)',
+        emoji,
+        shipNote: 'Vận chuyển trung gian bởi nhà xe ViVu'
+      });
+
+      closeModal('sellProductModal');
+      renderSpecialties();
+      showToast('🎉 Đã đăng bán đặc sản lên chợ ViVu thành công!', 'success');
+    }
+
+    // ==================== 7-DAY ACTIVITY AUTO-CLEANUP ====================
+    function simulateDay8Cleanup() {
+      appState.activities = appState.activities
+        .map((item) => ({ ...item, daysAgo: item.daysAgo + 1 }))
+        .filter((item) => item.daysAgo <= 7);
+
+      renderActivities();
+      showToast('🧹 Đã chuyển sang ngày mới: Tự động xóa các giao dịch từ ngày thứ 8!', 'info');
+    }
+
+    // ==================== REGISTRATION & ROLE PRIVACY ====================
+    function openAuthModal() {
+      openModal('authModal');
+    }
+
+    function sendAiOtp() {
+      const phone = document.getElementById('regPhoneInput').value.trim();
+      if (phone.length < 9) {
+        showToast('⚠️ Vui lòng nhập số điện thoại hợp lệ!', 'warning');
+        return;
+      }
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      appState.generatedOtp = otp;
+      document.getElementById('generatedOtpCode').textContent = otp;
+      document.getElementById('aiOtpBanner').classList.remove('hidden');
+      document.getElementById('regOtpInput').value = otp;
+      showToast(`🤖 AI ViVu đã gửi mã OTP ${otp} tới SĐT ${phone}`, 'info');
+    }
+
+    function completeCustomerRegistration() {
+      const phone = document.getElementById('regPhoneInput').value.trim();
+      const otp = document.getElementById('regOtpInput').value.trim();
+      const name = document.getElementById('regNameInput').value.trim();
+
+      if (!phone || !name) {
+        showToast('⚠️ Vui lòng nhập SĐT và Tên tài khoản!', 'warning');
+        return;
+      }
+      if (otp !== appState.generatedOtp) {
+        showToast('❌ Mã OTP không chính xác!', 'warning');
+        return;
+      }
+
+      appState.user.phone = phone;
+      appState.user.name = name;
+      appState.user.verified = true;
+      updateUserDisplays();
+      closeModal('authModal');
+      showToast(`🎉 Chào mừng ${name} đã đăng ký thành công tài khoản ViVu!`, 'success');
+    }
+
+    function openDriverRegisterModal() {
+      openModal('driverRegModal');
+    }
+
+    function previewDriverSelfie(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        document.getElementById('drvSelfiePreview').src = e.target.result;
+        appState.driver.selfie = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function submitDriverRegistration() {
+      const name = document.getElementById('drvRealName').value.trim();
+      const phone = document.getElementById('drvPhone').value.trim();
+      const cccd = document.getElementById('drvCccd').value.trim();
+      const vehicleType = document.getElementById('drvVehicleType').value.trim();
+      const plateColor = document.getElementById('drvPlateColor').value.trim();
+
+      if (!name || !phone || !cccd || !vehicleType || !plateColor) {
+        showToast('⚠️ Vui lòng điền đầy đủ thông tin thật, CCCD và thông tin xe!', 'warning');
+        return;
+      }
+
+      appState.driver.name = name;
+      appState.driver.phone = phone;
+      appState.driver.cccd = cccd;
+      appState.driver.vehicleType = vehicleType;
+      appState.driver.licensePlate = plateColor;
+
+      document.getElementById('activeDriverName').textContent = name;
+      document.getElementById('activeDriverAvatar').src = appState.driver.selfie;
+      document.getElementById('activeDriverVehicle').textContent = `${vehicleType} • ${plateColor}`;
+
+      closeModal('driverRegModal');
+      switchRole('driver');
+      renderDriverProfileShowcase();
+      showToast('🚖 Đăng ký hồ sơ Nhà xe thành công! Đã chuyển sang chế độ xem Tài xế.', 'success');
+    }
+
+    function switchRole(newRole) {
+      appState.role = newRole;
+      document.getElementById('desktopRoleSelect').value = newRole;
+      document.getElementById('accountRoleSelect').value = newRole;
+
+      const roleNames = {
+        customer: 'Khách hàng',
+        driver: 'Nhà xe / Tài xế',
+        admin: 'Quản trị viên'
+      };
+      document.getElementById('sidebarRoleBadge').textContent = roleNames[newRole];
+      renderDriverProfileShowcase();
+    }
+
+    function renderDriverProfileShowcase() {
+      const d = appState.driver;
+      const canSeePrivate = appState.role === 'driver' || appState.role === 'admin';
+
+      let statusBanner = '';
+      if (d.rating < 2.5) {
+        statusBanner = `<div class="mb-3 p-2.5 rounded-xl bg-red-100 border border-red-300 text-red-800 text-xs font-bold">🚫 TRẠNG THÁI: Tài khoản bị tạm khóa 1 tuần do đánh giá dưới 2.5 sao (${d.rating}⭐)</div>`;
+      } else if (d.rating < 3.5) {
+        statusBanner = `<div class="mb-3 p-2.5 rounded-xl bg-amber-100 border border-amber-300 text-amber-900 text-xs font-bold">⚠️ CẢNH BÁO CHẤT LƯỢNG: Điểm đánh giá dưới 3.5 sao (${d.rating}⭐). Cần cải thiện thái độ phục vụ!</div>`;
+      }
+
+      document.getElementById('driverProfileShowcase').innerHTML = `
+        ${statusBanner}
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div class="flex items-center gap-3.5">
+            <img src="${d.selfie}" alt="${d.name}" class="w-16 h-16 rounded-2xl object-cover border-2 border-[#00897B] shadow" />
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="font-extrabold text-sm sm:text-base text-slate-800">${d.name}</span>
+                <span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-bold">⭐ ${d.rating} (${d.tripsCount} chuyến)</span>
+              </div>
+              <p class="text-xs font-semibold text-[#00796B] mt-0.5">🚐 Loại xe: ${d.vehicleType}</p>
+              ${canSeePrivate ? `
+                <div class="mt-2 p-2.5 rounded-xl bg-teal-100/70 border border-teal-200 text-xs text-slate-800 space-y-0.5">
+                  <p class="font-bold text-[#00695C]">🔓 Thông tin bảo mật (Chỉ Tài xế & Admin được xem):</p>
+                  <p>• Số CCCD: <b>${d.cccd}</b></p>
+                  <p>• SĐT cá nhân: <b>${d.phone}</b></p>
+                  <p>• Màu sắc & Biển số: <b>${d.vehicleColor} - ${d.licensePlate}</b></p>
+                </div>
+              ` : `
+                <p class="text-[11px] text-slate-400 italic mt-1">🔒 Số CCCD, SĐT cá nhân & thông tin chi tiết được ẩn để bảo vệ quyền riêng tư nhà xe.</p>
+              `}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // ==================== LOYALTY POINTS & MINI-GAMES HUB ====================
+    let currentMiniGame = 'wheel';
+    let wheelRotation = 0;
+
+    function addPoints(pts) {
+      appState.user.points += pts;
+      document.getElementById('sidebarPoints').textContent = appState.user.points.toLocaleString('vi-VN');
+      document.getElementById('headerPoints').textContent = appState.user.points.toLocaleString('vi-VN');
+      const accPts = document.getElementById('accountPointsDisplay');
+      if (accPts) accPts.textContent = appState.user.points.toLocaleString('vi-VN');
+    }
+
+    function claimDailyCheckin() {
+      if (appState.user.checkedInToday) {
+        showToast('📅 Bạn đã điểm danh hôm nay rồi! Quay lại vào ngày mai nhé.', 'info');
+        return;
+      }
+      appState.user.checkedInToday = true;
+      addPoints(100);
+      const btn = document.getElementById('dailyCheckinBtn');
+      btn.textContent = '✅ Đã điểm danh hôm nay';
+      btn.classList.add('opacity-70');
+      showToast('🎉 Điểm danh thành công! Bạn nhận được +100 điểm ViVu Xu.', 'success');
+    }
+
+    function scrollToGames() {
+      document.getElementById('gamesHubSection').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function selectMiniGame(gameKey) {
+      currentMiniGame = gameKey;
+      ['wheel', 'tree', 'bubble', 'claw', 'redeem'].forEach((k) => {
+        const btn = document.getElementById(`gameTab-${k}`);
+        if (k === gameKey) {
+          btn.className = 'px-3.5 py-2 rounded-xl bg-[#00897B] text-white text-xs font-bold transition shadow';
+        } else {
+          btn.className = 'px-3.5 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold transition';
+        }
+      });
+      renderMiniGameStage();
+    }
+
+    function renderMiniGameStage() {
+      const stage = document.getElementById('miniGameStage');
+
+      if (currentMiniGame === 'wheel') {
+        stage.innerHTML = `
+          <div class="flex flex-col sm:flex-row items-center justify-around gap-5">
+            <div class="relative w-48 h-48 flex items-center justify-center">
+              <div class="absolute -top-2 z-10 text-2xl">🔻</div>
+              <div id="luckyWheelDisk" class="wheel-spinner w-44 h-44 rounded-full border-4 border-white shadow-xl flex items-center justify-center text-white font-extrabold text-xs text-center"
+                style="background: conic-gradient(#00897B 0deg 90deg, #FF7043 90deg 180deg, #00ACC1 180deg 270deg, #FF9800 270deg 360deg);">
+                <div class="w-12 h-12 rounded-full bg-white text-[#00695C] flex items-center justify-center font-black shadow">VIVU</div>
+              </div>
+            </div>
+            <div class="text-center sm:text-left space-y-2 max-w-xs">
+              <h4 class="font-extrabold text-base text-slate-800">🎡 Vòng Quay May Mắn ViVu</h4>
+              <p class="text-xs text-slate-600">Quay miễn phí mỗi ngày để trúng tới <b>+300 ViVu Xu</b> hoặc <b>Voucher giảm 20%</b>!</p>
+              <button onclick="spinLuckyWheel()" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#FF7043] to-[#FF9800] text-white font-bold text-xs shadow-md hover:brightness-105">
+                Quay ngay!
+              </button>
+            </div>
+          </div>
+        `;
+      } else if (currentMiniGame === 'tree') {
+        const pct = Math.min(100, appState.treeWaterCount * 25);
+        stage.innerHTML = `
+          <div class="text-center space-y-3">
+            <div class="text-5xl">${pct >= 100 ? '🌳🍎' : pct >= 50 ? '🌿' : '🌱'}</div>
+            <h4 class="font-extrabold text-sm text-slate-800">Vườn Cây ViVu Xanh (${pct}% trưởng thành)</h4>
+            <div class="w-full max-w-xs mx-auto h-3 bg-white rounded-full overflow-hidden border border-teal-200">
+              <div class="h-full bg-[#00897B] transition-all" style="width:${pct}%"></div>
+            </div>
+            <p class="text-xs text-slate-600">Tưới nước mỗi ngày để cây ra quả và thu hoạch +250 điểm thưởng!</p>
+            <button onclick="waterVivuTree()" class="px-5 py-2 rounded-xl bg-[#00897B] text-white font-bold text-xs shadow">
+              💧 Tưới nước ngay (+40 Xu)
+            </button>
+          </div>
+        `;
+      } else if (currentMiniGame === 'bubble') {
+        stage.innerHTML = `
+          <div class="text-center space-y-3">
+            <h4 class="font-extrabold text-sm text-slate-800">🫧 Bắn Bóng Săn Xu — Chạm vào bong bóng để nổ!</h4>
+            <div class="flex flex-wrap justify-center gap-3 py-2">
+              ${[30, 50, 20, 80, 40, 60].map((val) => `
+                <button onclick="popBubble(this, ${val})" class="w-14 h-14 rounded-full bg-gradient-to-br from-cyan-400 to-[#00897B] text-white font-extrabold text-xs shadow-lg hover:scale-110 transition">
+                  +${val}
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      } else if (currentMiniGame === 'claw') {
+        stage.innerHTML = `
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-center">
+            <div class="p-4 bg-white rounded-2xl border border-teal-100 space-y-2">
+              <div class="text-3xl">🧸</div>
+              <h5 class="font-bold text-xs text-slate-800">Gắp Thú & Xếp Hình Du Lịch</h5>
+              <button onclick="playQuickReward('Gắp thú trúng gấu bông ViVu', 120)" class="px-4 py-2 rounded-xl bg-[#FF7043] text-white text-xs font-bold">Chơi gắp thú (+120 Xu)</button>
+            </div>
+            <div class="p-4 bg-white rounded-2xl border border-teal-100 space-y-2">
+              <div class="text-3xl">🧁</div>
+              <h5 class="font-bold text-xs text-slate-800">Làm Bánh Đặc Sản Vùng Miền</h5>
+              <button onclick="playQuickReward('Hoàn thành mẻ bánh đậu xanh', 110)" class="px-4 py-2 rounded-xl bg-[#00897B] text-white text-xs font-bold">Nướng bánh ngay (+110 Xu)</button>
+            </div>
+          </div>
+        `;
+      } else if (currentMiniGame === 'redeem') {
+        stage.innerHTML = `
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="p-3.5 bg-white rounded-2xl border border-teal-100 flex flex-col justify-between">
+              <div>
+                <span class="text-2xl">🎟️</span>
+                <h5 class="font-bold text-xs text-slate-800 mt-1">Voucher Giảm 25% Đặt Xe</h5>
+                <p class="text-[11px] text-slate-500">Mã: VIVU50K • Mọi tuyến đường dài</p>
+              </div>
+              <button onclick="redeemReward(500, 'Voucher giảm 25% (Mã: VIVU50K)')" class="mt-3 w-full py-2 rounded-xl bg-[#00897B] text-white text-xs font-bold">Đổi 500 Xu</button>
+            </div>
+            <div class="p-3.5 bg-white rounded-2xl border border-teal-100 flex flex-col justify-between">
+              <div>
+                <span class="text-2xl">🧺</span>
+                <h5 class="font-bold text-xs text-slate-800 mt-1">Miễn phí ship Chợ Đặc Sản</h5>
+                <p class="text-[11px] text-slate-500">Giảm 35.000đ phí trung gian</p>
+              </div>
+              <button onclick="redeemReward(350, 'Thẻ miễn phí vận chuyển đặc sản')" class="mt-3 w-full py-2 rounded-xl bg-[#00897B] text-white text-xs font-bold">Đổi 350 Xu</button>
+            </div>
+            <div class="p-3.5 bg-white rounded-2xl border border-teal-100 flex flex-col justify-between">
+              <div>
+                <span class="text-2xl">🧢</span>
+                <h5 class="font-bold text-xs text-slate-800 mt-1">Mũ Bảo Hiểm / Gối Cổ ViVu</h5>
+                <p class="text-[11px] text-slate-500">Quà tặng sự kiện du lịch hè</p>
+              </div>
+              <button onclick="redeemReward(1000, 'Quà tặng gối cổ du lịch ViVu')" class="mt-3 w-full py-2 rounded-xl bg-[#FF7043] text-white text-xs font-bold">Đổi 1,000 Xu</button>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    function spinLuckyWheel() {
+      const wheel = document.getElementById('luckyWheelDisk');
+      wheelRotation += 1080 + Math.floor(Math.random() * 360);
+      wheel.style.transform = `rotate(${wheelRotation}deg)`;
+      setTimeout(() => {
+        addPoints(200);
+        showToast('🎡 Chúc mừng! Vòng quay dừng ở ô +200 ViVu Xu!', 'success');
+      }, 4100);
+    }
+
+    function waterVivuTree() {
+      appState.treeWaterCount++;
+      if (appState.treeWaterCount >= 4) {
+        appState.treeWaterCount = 0;
+        addPoints(250);
+        showToast('🌳 Cây đã ra quả! Bạn thu hoạch được +250 ViVu Xu!', 'success');
+      } else {
+        addPoints(40);
+        showToast('💧 Đã tưới nước cho cây! (+40 ViVu Xu)', 'success');
+      }
+      renderMiniGameStage();
+    }
+
+    function popBubble(btn, pts) {
+      btn.disabled = true;
+      btn.classList.add('opacity-20', 'scale-75');
+      addPoints(pts);
+      showToast(`🫧 Bùm! Bạn nhận được +${pts} ViVu Xu!`, 'success');
+    }
+
+    function playQuickReward(label, pts) {
+      addPoints(pts);
+      showToast(`🎉 ${label}! Bạn nhận được +${pts} ViVu Xu!`, 'success');
+    }
+
+    function redeemReward(cost, itemName) {
+      if (appState.user.points < cost) {
+        showToast('⚠️ Bạn chưa đủ ViVu Xu để đổi quà này!', 'warning');
+        return;
+      }
+      addPoints(-cost);
+      appState.notifications.unshift({
+        id: 'N-' + Date.now(),
+        title: `🎁 Đổi quà thành công: ${itemName}`,
+        body: 'Ưu đãi đã được lưu vào ví Voucher của bạn.',
+        time: 'Vừa xong',
+        code: 'VIVU50K',
+        unread: true
+      });
+      renderNotifications();
+      showToast(`🎁 Đổi thành công "${itemName}"!`, 'success');
+    }
+
+    // ==================== LINKED BANKS & E-WALLETS ====================
+    function openLinkBankModal() {
+      openModal('linkBankModal');
+    }
+
+    function confirmLinkBank() {
+      const provider = document.getElementById('bankProviderSelect').value;
+      const num = document.getElementById('bankAccountNumInput').value.trim();
+      if (!num) {
+        showToast('⚠️ Vui lòng nhập số tài khoản hoặc SĐT ví!', 'warning');
+        return;
+      }
+      const masked = '**** ' + num.slice(-4);
+      appState.linkedBanks.push({
+        id: 'B-' + Date.now(),
+        provider,
+        number: masked,
+        type: provider.includes('Ví') ? 'Ví điện tử' : 'Ngân hàng'
+      });
+
+      const select = document.getElementById('paymentMethodSelect');
+      const opt = document.createElement('option');
+      opt.value = provider;
+      opt.textContent = `💳 ${provider} ${masked} (Mới liên kết)`;
+      select.appendChild(opt);
+
+      closeModal('linkBankModal');
+      renderLinkedBanks();
+      showToast(`🏦 Đã liên kết thành công ${provider}!`, 'success');
+    }
+
+    // ==================== RENDER FUNCTIONS ====================
+    function renderAllViews() {
+      updateUserDisplays();
+      renderSelfDriveCars();
+      renderSpecialties();
+      renderActivities();
+      renderNotifications();
+      renderDriverProfileShowcase();
+      renderMiniGameStage();
+      renderLinkedBanks();
+      recalculateFare();
+    }
+
+    function updateUserDisplays() {
+      document.getElementById('heroUserName').textContent = appState.user.name;
+      document.getElementById('profileDisplayName').textContent = appState.user.name;
+      document.getElementById('profilePhoneText').textContent = `SĐT: ${appState.user.phone} • Đã xác thực AI OTP`;
+      document.getElementById('headerAuthBtn').textContent = `👤 ${appState.user.name}`;
+    }
+
+    function renderSelfDriveCars() {
+      document.getElementById('selfDriveList').innerHTML = appState.selfDriveCars.map((c) => `
+        <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-3xl">${c.emoji}</span>
+              <span class="px-2 py-0.5 rounded-full bg-teal-100 text-[#00695C] text-[10px] font-bold">${c.badge}</span>
+            </div>
+            <h4 class="font-extrabold text-sm text-slate-800 mt-2">${c.name}</h4>
+            <p class="text-xs text-slate-500 mt-0.5">${c.seats}</p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-200 flex items-center justify-between">
+            <span class="font-extrabold text-sm text-[#FF7043]">${formatVND(c.pricePerDay)}/ngày</span>
+            <button onclick="bookSelfDriveCar('${c.id}')" class="px-3 py-1.5 rounded-xl bg-[#00897B] text-white text-xs font-bold hover:bg-[#00695C]">Thuê xe</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderSpecialties() {
+      document.getElementById('specialtyGrid').innerHTML = appState.specialties.map((s) => `
+        <div class="p-4 rounded-2xl bg-orange-50/40 border border-orange-100 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-3xl">${s.emoji}</span>
+              <span class="px-2 py-0.5 rounded-full bg-white border border-orange-200 text-orange-700 text-[10px] font-bold">📍 ${s.origin}</span>
+            </div>
+            <h4 class="font-extrabold text-sm text-slate-800 mt-2">${s.name}</h4>
+            <p class="text-[11px] text-slate-500 mt-0.5">Người bán: <b>${s.seller}</b></p>
+            <p class="text-[11px] text-[#00796B] mt-1">🚚 ${s.shipNote}</p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-orange-100 flex items-center justify-between">
+            <span class="font-extrabold text-sm text-[#FF7043]">${formatVND(s.price)}</span>
+            <button onclick="orderSpecialty('${s.id}')" class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#FF7043] to-[#FF9800] text-white text-xs font-bold shadow-sm">Đặt mua</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderActivities() {
+      const container = document.getElementById('activityListContainer');
+      document.getElementById('desktopActivityCount').textContent = appState.activities.length;
+
+      if (appState.activities.length === 0) {
+        container.innerHTML = `<div class="text-center py-8 text-xs text-slate-400">Không có giao dịch nào trong 7 ngày gần nhất.</div>`;
+        return;
+      }
+
+      const icons = { ride: '🚐', market: '🧺', parcel: '📦', selfdrive: '🚘' };
+      container.innerHTML = appState.activities.map((a) => `
+        <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <div class="w-11 h-11 rounded-2xl bg-teal-100 text-xl flex items-center justify-center shrink-0">${icons[a.type] || '🧾'}</div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h4 class="font-bold text-xs sm:text-sm text-slate-800">${a.title}</h4>
+                <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">${a.status}</span>
+              </div>
+              <p class="text-[11px] text-slate-500 mt-0.5">${a.detail}</p>
+              <p class="text-[10px] text-slate-400 mt-0.5">Thời gian: ${a.daysAgo === 0 ? 'Hôm nay' : a.daysAgo + ' ngày trước'} • Tự xóa sau ${8 - a.daysAgo} ngày</p>
+            </div>
+          </div>
+          <div class="font-extrabold text-sm text-[#00796B]">${a.amount}</div>
+        </div>
+      `).join('');
+    }
+
+    function renderNotifications() {
+      const unreadCount = appState.notifications.filter((n) => n.unread).length;
+      document.getElementById('desktopNotifCount').textContent = unreadCount;
+      document.getElementById('mobileNotifDot').classList.toggle('hidden', unreadCount === 0);
+
+      document.getElementById('notificationListContainer').innerHTML = appState.notifications.map((n) => `
+        <div class="p-4 rounded-2xl border ${n.unread ? 'bg-teal-50/70 border-teal-200' : 'bg-white border-slate-200'} flex flex-wrap items-center justify-between gap-3">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              ${n.unread ? '<span class="w-2 h-2 rounded-full bg-[#FF7043]"></span>' : ''}
+              <h4 class="font-bold text-xs sm:text-sm text-slate-800">${n.title}</h4>
+            </div>
+            <p class="text-xs text-slate-600 mt-1">${n.body}</p>
+            <span class="text-[10px] text-slate-400 mt-1 block">${n.time}</span>
+          </div>
+          ${n.code ? `
+            <button onclick="useVoucherFromNotif('${n.code}')" class="px-3.5 py-2 rounded-xl bg-[#FF7043] text-white text-xs font-bold shadow-sm shrink-0">
+              Dùng mã ${n.code}
+            </button>
+          ` : ''}
+        </div>
+      `).join('');
+    }
+
+    function useVoucherFromNotif(code) {
+      switchTab('home');
+      switchHomeSubPanel('ride');
+      document.getElementById('promoCodeInput').value = code;
+      applyPromoCode();
+    }
+
+    function markAllNotificationsRead() {
+      appState.notifications.forEach((n) => (n.unread = false));
+      renderNotifications();
+      showToast('✅ Đã đánh dấu đọc tất cả thông báo.', 'info');
+    }
+
+    function renderLinkedBanks() {
+      document.getElementById('linkedAccountsList').innerHTML = appState.linkedBanks.map((b) => `
+        <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl">${b.type === 'Ví điện tử' ? '📱' : '🏦'}</span>
+            <div>
+              <div class="font-bold text-xs sm:text-sm text-slate-800">${b.provider}</div>
+              <div class="text-[11px] text-slate-500">${b.number} • ${b.type}</div>
+            </div>
+          </div>
+          <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">Đã liên kết</span>
+        </div>
+      `).join('');
+    }
+
+    // ==================== MODAL & TOAST UTILITIES ====================
+    function openModal(id) {
+      const m = document.getElementById(id);
+      m.classList.remove('hidden');
+      m.classList.add('flex');
+    }
+
+    function closeModal(id) {
+      const m = document.getElementById(id);
+      m.classList.add('hidden');
+      m.classList.remove('flex');
+    }
+
+    function formatVND(num) {
+      return Number(num).toLocaleString('vi-VN') + 'đ';
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const colors = {
+        success: 'bg-[#00695C] text-white border-teal-400',
+        warning: 'bg-[#E65100] text-white border-orange-300',
+        info: 'bg-slate-800 text-white border-slate-600'
+      };
+      const toast = document.createElement('div');
+      toast.className = `pointer-events-auto px-4 py-3 rounded-2xl shadow-xl border text-xs font-semibold transition-all duration-300 transform translate-y-0 ${colors[type] || colors.info}`;
+      toast.textContent = message;
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(-10px)';
+        setTimeout(() => toast.remove(), 300);
+      }, 3200);
+    }
+  </script>
+</body>
+</html>
